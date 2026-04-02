@@ -451,7 +451,10 @@ select option{background:var(--surface);}
     <div class="page" id="page-workorder">
       <div class="sec-header">
         <span class="sec-title amber">Work Order Management</span>
-        <button class="btn btn-amber btn-sm" onclick="openWOModal()">+ Buat WO</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openBulkModal('wo')">📋 Bulk Import</button>
+          <button class="btn btn-amber btn-sm" onclick="openWOModal()">+ Buat WO</button>
+        </div>
       </div>
       <div class="filter-bar">
         <input type="text" placeholder="Cari WO / mesin / deskripsi..." oninput="filterWO()" id="wo-search">
@@ -495,6 +498,7 @@ select option{background:var(--surface);}
       <div class="sec-header">
         <span class="sec-title" style="color:var(--cyan)">Schedule — Daily & Weekly PM</span>
         <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openBulkModal('pm')">📋 Bulk Import</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleSchedView()">🔄 Toggle View</button>
           <button class="btn btn-sm" style="background:var(--cyan);color:#000;" onclick="openPMModal()">+ Tambah PM</button>
         </div>
@@ -567,7 +571,10 @@ select option{background:var(--surface);}
     <div class="page" id="page-manpower">
       <div class="sec-header">
         <span class="sec-title purple">Manpower & Scheduling</span>
-        <button class="btn btn-sm btn-purple" onclick="openTechModal()">+ Tambah Teknisi</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openBulkModal('tech')">📋 Bulk Import</button>
+          <button class="btn btn-sm btn-purple" onclick="openTechModal()">+ Tambah Teknisi</button>
+        </div>
       </div>
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchMpTab('roster',this)">👷 Roster Teknisi</button>
@@ -623,7 +630,10 @@ select option{background:var(--surface);}
       <div id="tools-sparepart">
         <div class="sec-header">
           <span></span>
-          <button class="btn btn-sm btn-orange" onclick="openSpareModal()">+ Tambah Part</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="openBulkModal('spare')">📋 Bulk Import</button>
+            <button class="btn btn-sm btn-orange" onclick="openSpareModal()">+ Tambah Part</button>
+          </div>
         </div>
         <div class="filter-bar">
           <input type="text" placeholder="Cari nama / part number..." oninput="filterSpare()" id="sp-search">
@@ -646,7 +656,10 @@ select option{background:var(--surface);}
       <div id="tools-tools" style="display:none;">
         <div class="sec-header">
           <span></span>
-          <button class="btn btn-sm btn-orange" onclick="openToolItemModal()">+ Tambah Tools</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="openBulkModal('tools')">📋 Bulk Import</button>
+            <button class="btn btn-sm btn-orange" onclick="openToolItemModal()">+ Tambah Tools</button>
+          </div>
         </div>
         <div class="filter-bar">
           <input type="text" placeholder="Cari tools..." oninput="filterTools()" id="tool-search">
@@ -710,6 +723,7 @@ select option{background:var(--surface);}
         <button class="tab-btn active" onclick="switchAnalyticsTab('summary',this)">📊 Ringkasan</button>
         <button class="tab-btn" onclick="switchAnalyticsTab('downtime',this)">⏱ Downtime</button>
         <button class="tab-btn" onclick="switchAnalyticsTab('kpi',this)">🎯 KPI (MTTR/MTBF)</button>
+        <button class="tab-btn" onclick="switchAnalyticsTab('weekly_bd',this)">📋 Weekly BD Report</button>
         <button class="tab-btn" onclick="switchAnalyticsTab('cost',this)">💰 Cost Maintenance</button>
         <button class="tab-btn" onclick="switchAnalyticsTab('report',this)">📋 Laporan</button>
       </div>
@@ -751,6 +765,55 @@ select option{background:var(--surface);}
       <!-- KPI -->
       <div id="ana-kpi" style="display:none;">
         <div class="mtbf-grid" id="ana-mtbf-cards"></div>
+      </div>
+
+      <!-- Weekly BD Report -->
+      <div id="ana-weekly_bd" style="display:none;">
+        <div class="sec-header">
+          <span class="sec-title green">Weekly Breakdown Report</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="openWBDHistoryModal()">📂 Riwayat</button>
+            <button class="btn btn-green btn-sm" onclick="openWBDInputModal()">+ Input Weekly Report</button>
+          </div>
+        </div>
+
+        <!-- Filter -->
+        <div class="filter-bar">
+          <input type="week" id="wbd-filter-week" onchange="renderWBDView()">
+          <select id="wbd-filter-group" onchange="renderWBDView()">
+            <option value="">Semua Group Mesin</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('wbd-filter-week').value='';document.getElementById('wbd-filter-group').value='';renderWBDView()">Reset</button>
+        </div>
+
+        <!-- Summary KPI -->
+        <div class="stats-row" id="wbd-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px;"></div>
+
+        <!-- Tabel Matrix (seperti gambar) -->
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-title">
+            <span id="wbd-table-title">Breakdown per Mesin per Jenis</span>
+            <span id="wbd-week-label" style="color:var(--text-muted);font-size:10px;"></span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table id="wbd-matrix-table" style="min-width:600px;">
+              <thead><tr id="wbd-matrix-head"></tr></thead>
+              <tbody id="wbd-matrix-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top Issues Pareto -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="card">
+            <div class="card-title"><span>🔴 Top Issues (Pareto)</span></div>
+            <div id="wbd-pareto"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span>⚙️ Top Mesin Breakdown</span></div>
+            <div id="wbd-top-machines"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Cost -->
@@ -824,7 +887,10 @@ select option{background:var(--surface);}
       <div id="sett-machine">
         <div class="sec-header">
           <span></span>
-          <button class="btn btn-sm btn-danger" onclick="openMachineModal()">+ Tambah Mesin</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="openBulkModal('machine')">📋 Bulk Import</button>
+            <button class="btn btn-sm btn-danger" onclick="openMachineModal()">+ Tambah Mesin</button>
+          </div>
         </div>
         <div class="machine-grid" id="master-machine-cards"></div>
         <div class="tbl-wrap">
@@ -1376,6 +1442,144 @@ select option{background:var(--surface);}
   </div>
 </div>
 
+<!-- WEEKLY BD REPORT INPUT MODAL -->
+<div class="modal-overlay" id="wbd-input-modal">
+  <div class="modal" style="border-top:3px solid var(--green);width:900px;max-width:98vw;">
+    <div class="modal-header">
+      <span class="modal-title">INPUT WEEKLY BREAKDOWN REPORT</span>
+      <button class="modal-close" onclick="closeWBDInputModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Info & Week -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div class="form-group">
+          <label>Periode Minggu</label>
+          <input type="week" id="wbd-week" required>
+        </div>
+        <div class="form-group">
+          <label>Group Mesin</label>
+          <select id="wbd-group">
+            <option value="D-series">D-series (D1–F3)</option>
+            <option value="C-series">C-series (C1–C4)</option>
+            <option value="Custom">Custom / Lainnya</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Catatan Minggu Ini</label>
+          <input type="text" id="wbd-notes" placeholder="Catatan singkat...">
+        </div>
+      </div>
+
+      <!-- Machine List Config -->
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label>DAFTAR MESIN (pisah koma)</label>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-xs" onclick="setWBDPresetMachines('D')">Preset D-series</button>
+            <button class="btn btn-ghost btn-xs" onclick="setWBDPresetMachines('C')">Preset C-series</button>
+          </div>
+        </div>
+        <input type="text" id="wbd-machines-list" placeholder="D1,D2,D7,D8,D10,D14,D15,D16,D17,F1,F2,F3" style="font-family:var(--mono);font-size:11px;" oninput="rebuildWBDTable()">
+      </div>
+
+      <!-- Desc / Kategori -->
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label>KATEGORI BREAKDOWN (pisah koma atau Enter baru)</label>
+          <button class="btn btn-ghost btn-xs" onclick="setWBDPresetDesc()">Preset Kategori</button>
+        </div>
+        <textarea id="wbd-desc-list" rows="3" placeholder="Airblow,Cam Track,Coding,Conveyor,Cooling,Electrical..." style="font-family:var(--mono);font-size:11px;" oninput="rebuildWBDTable()"></textarea>
+      </div>
+
+      <!-- Matrix Input Table -->
+      <div style="margin-bottom:6px;font-family:var(--mono);font-size:9px;color:var(--text-muted);letter-spacing:1px;">TABEL INPUT — ISI JUMLAH BREAKDOWN (0 = kosong)</div>
+      <div style="overflow-x:auto;max-height:340px;overflow-y:auto;border:1px solid var(--border);">
+        <table id="wbd-input-table" style="border-collapse:collapse;min-width:400px;">
+          <thead><tr id="wbd-input-head" style="background:var(--surface2);position:sticky;top:0;z-index:1;"></tr></thead>
+          <tbody id="wbd-input-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:6px;font-size:10px;color:var(--text-muted);">💡 Tip: Tekan Tab untuk pindah kolom, Enter untuk baris berikutnya. Kosongkan sel = 0.</div>
+
+    </div>
+    <div class="modal-footer">
+      <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--text-muted);" id="wbd-total-preview"></div>
+      <button class="btn btn-ghost" onclick="closeWBDInputModal()">Batal</button>
+      <button class="btn btn-green" onclick="saveWBDReport()">💾 Simpan Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- WEEKLY BD HISTORY MODAL -->
+<div class="modal-overlay" id="wbd-history-modal">
+  <div class="modal" style="border-top:3px solid var(--green);width:700px;">
+    <div class="modal-header">
+      <span class="modal-title">RIWAYAT WEEKLY BD REPORT</span>
+      <button class="modal-close" onclick="document.getElementById('wbd-history-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div id="wbd-history-body" style="max-height:500px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BULK IMPORT MODAL -->
+<div class="modal-overlay" id="bulk-modal">
+  <div class="modal" style="border-top:3px solid var(--teal);width:780px;">
+    <div class="modal-header">
+      <span class="modal-title" id="bulk-modal-title">BULK IMPORT</span>
+      <button class="modal-close" onclick="closeBulkModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Format Info -->
+      <div class="alert-strip alert-blue" style="margin-bottom:12px;">
+        <span>💡</span>
+        <span id="bulk-format-hint">Copy dari Excel/Google Sheets lalu paste di area bawah. Pisah kolom dengan TAB, baris dengan Enter.</span>
+      </div>
+
+      <!-- Column Header Template -->
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <label>TEMPLATE KOLOM</label>
+          <button class="btn btn-ghost btn-xs" onclick="copyBulkTemplate()">📋 Copy Template</button>
+        </div>
+        <div id="bulk-template-header" style="background:var(--surface2);border:1px solid var(--border);padding:8px 12px;font-family:var(--mono);font-size:10px;color:var(--cyan);white-space:nowrap;overflow-x:auto;letter-spacing:0.5px;"></div>
+      </div>
+
+      <!-- Paste Area -->
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>PASTE DATA DI SINI (dari Excel / Google Sheets)</label>
+        <textarea id="bulk-paste-area" rows="10"
+          placeholder="Paste data dari Excel atau Google Sheets di sini...&#10;&#10;Contoh (pisah dengan TAB):&#10;2024-01-15	corrective	D1	Bearing rusak	H	Dicky	2	2024-01-16	open"
+          style="font-family:var(--mono);font-size:11px;resize:vertical;"
+          oninput="parseBulkPreview()"></textarea>
+      </div>
+
+      <!-- Preview -->
+      <div id="bulk-preview-wrap" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label>PREVIEW — <span id="bulk-row-count" style="color:var(--teal);">0 baris</span> terdeteksi</label>
+          <div style="display:flex;gap:6px;">
+            <span id="bulk-error-count" style="font-family:var(--mono);font-size:9px;color:var(--red);"></span>
+          </div>
+        </div>
+        <div class="tbl-wrap" style="max-height:200px;overflow-y:auto;margin-bottom:0;">
+          <table style="min-width:auto;"><thead><tr id="bulk-preview-head"></tr></thead>
+          <tbody id="bulk-preview-body"></tbody></table>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--text-muted);" id="bulk-footer-info"></div>
+      <button class="btn btn-ghost" onclick="closeBulkModal()">Batal</button>
+      <button class="btn btn-teal" id="bulk-import-btn" onclick="executeBulkImport()" disabled style="opacity:0.5;">⬆ Import <span id="bulk-import-count">0</span> Data</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1411,6 +1615,7 @@ let state = {
   weekOffset: 0,
   editPMId: null, editWOId: null, editSpareId: null, stockEditId: null,
   editMachineId: null, editTechId: null, editToolItemId: null, editCostId: null,
+  weeklyBDReports: [],
   selectedRole: 'Admin',
 };
 
@@ -1438,21 +1643,23 @@ function buildPayload(){
     techs:         state.techList,
     tools:         state.toolsList,
     costs:         state.costList,
-    notifications: state.notifications
+    notifications: state.notifications,
+    weeklyBDReports: state.weeklyBDReports||[]
   };
 }
 
 // Terapkan data dari GAS ke state
 function applyData(p){
   if(!p) return;
-  state.pmList        = p.pm        || [];
-  state.woList        = p.wo        || [];
-  state.bdList        = p.bd        || [];
-  state.spareList     = p.spare     || [];
-  state.techList      = p.techs     || [];
-  state.toolsList     = p.tools     || [];
-  state.costList      = p.costs     || [];
-  state.notifications = p.notifications || [];
+  state.pmList           = p.pm        || [];
+  state.woList           = p.wo        || [];
+  state.bdList           = p.bd        || [];
+  state.spareList        = p.spare     || [];
+  state.techList         = p.techs     || [];
+  state.toolsList        = p.tools     || [];
+  state.costList         = p.costs     || [];
+  state.notifications    = p.notifications || [];
+  state.weeklyBDReports  = p.weeklyBDReports || [];
   if(p.machines && p.machines.length) state.machineList = p.machines;
 }
 
@@ -2544,7 +2751,7 @@ function renderProgTimeline(){
 // ===============================
 let _analyticsTab = 'summary';
 function switchAnalyticsTab(tab, btn){
-  ['summary','downtime','kpi','cost','report'].forEach(t=>{ const el=document.getElementById('ana-'+t); if(el) el.style.display='none'; });
+  ['summary','downtime','kpi','weekly_bd','cost','report'].forEach(t=>{ const el=document.getElementById('ana-'+t); if(el) el.style.display='none'; });
   document.querySelectorAll('#page-analytics .tab-btn').forEach(b=>b.classList.remove('active'));
   const el=document.getElementById('ana-'+tab); if(el) el.style.display='block';
   if(btn) btn.classList.add('active');
@@ -2552,6 +2759,7 @@ function switchAnalyticsTab(tab, btn){
   if(tab==='summary') renderAnaSummary();
   if(tab==='downtime') renderAnaDowntime();
   if(tab==='kpi') renderAnaMTBF();
+  if(tab==='weekly_bd') renderWBDView();
   if(tab==='cost') renderAnaCost();
   if(tab==='report') renderDailyReport();
 }
@@ -2984,6 +3192,702 @@ function saveBD(){
   state.bdList.push({id:uid(),machine,date:gv('bd-date'),type:gv('bd-type'),downtime:gv('bd-downtime'),cause:gv('bd-cause'),action:gv('bd-action'),pic,status:gv('bd-status')});
   save(); closeBDModal(); renderDashboard(); toast('Breakdown direcord');
   addNotification('wo_overdue','🚨','Breakdown Direcord',`${machine} · DT: ${gv('bd-downtime')||0}h`);
+}
+
+// ===============================
+// WEEKLY BD REPORT
+// ===============================
+
+// Preset data dari gambar
+const WBD_PRESET_D_MACHINES = 'D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11,D12,D13,D14,D15,D16,D17,F1,F2,F3';
+const WBD_PRESET_C_MACHINES  = 'C1,C2,C7,C8,C3,C4';
+const WBD_PRESET_DESC = [
+  'Airblow','Cam Track','Coding','Conveyor','Cooling',
+  'Crank In','Crank Out','Electrical (coding)','Electrical (conveyor)',
+  'Electrical (Drive)','Electrical (Open Check Air)','Electrical (Open Vacuum)',
+  'Electrical (sealing)','Finger','Magazine','Nozzle','Nozzle Air',
+  'Open Check Air','Open pouch','Open Vacuum','Pouch Supply','Rod Coupler',
+  'Rotary','Running 1 line','Sealing','Selang angin','Take Up'
+];
+
+function openWBDInputModal(editId=null){
+  // Set default week = this week
+  const now  = new Date();
+  const y    = now.getFullYear();
+  const wk   = getISOWeek(now);
+  document.getElementById('wbd-week').value = `${y}-W${String(wk).padStart(2,'0')}`;
+  document.getElementById('wbd-notes').value = '';
+  document.getElementById('wbd-group').value = 'D-series';
+
+  // Default preset D-series
+  document.getElementById('wbd-machines-list').value = WBD_PRESET_D_MACHINES;
+  document.getElementById('wbd-desc-list').value = WBD_PRESET_DESC.join(',');
+
+  rebuildWBDTable();
+  document.getElementById('wbd-input-modal').classList.add('open');
+}
+function closeWBDInputModal(){ document.getElementById('wbd-input-modal').classList.remove('open'); }
+
+function setWBDPresetMachines(type){
+  document.getElementById('wbd-machines-list').value =
+    type==='D' ? WBD_PRESET_D_MACHINES : WBD_PRESET_C_MACHINES;
+  document.getElementById('wbd-group').value = type==='D'?'D-series':'C-series';
+  rebuildWBDTable();
+}
+
+function setWBDPresetDesc(){
+  document.getElementById('wbd-desc-list').value = WBD_PRESET_DESC.join(',');
+  rebuildWBDTable();
+}
+
+function getWBDMachines(){
+  return document.getElementById('wbd-machines-list').value
+    .split(/[,\n]/).map(s=>s.trim()).filter(Boolean);
+}
+function getWBDDescs(){
+  return document.getElementById('wbd-desc-list').value
+    .split(/[,\n]/).map(s=>s.trim()).filter(Boolean);
+}
+
+function rebuildWBDTable(){
+  const machines = getWBDMachines();
+  const descs    = getWBDDescs();
+  if(!machines.length || !descs.length) return;
+
+  // Thead
+  const head = document.getElementById('wbd-input-head');
+  head.innerHTML = `<th style="background:var(--surface3);padding:6px 10px;font-family:var(--mono);font-size:9px;color:var(--text-muted);white-space:nowrap;min-width:140px;position:sticky;left:0;z-index:2;">Desc</th>` +
+    machines.map(m=>`<th style="background:var(--surface2);padding:6px 8px;font-family:var(--mono);font-size:9px;color:var(--cyan);text-align:center;min-width:44px;">${m}</th>`).join('') +
+    `<th style="background:var(--surface2);padding:6px 8px;font-family:var(--mono);font-size:9px;color:var(--amber);text-align:center;min-width:52px;">Total</th>`;
+
+  // Tbody
+  const tbody = document.getElementById('wbd-input-body');
+  tbody.innerHTML = descs.map((desc,ri)=>`
+    <tr id="wbd-row-${ri}">
+      <td style="background:var(--surface);padding:5px 10px;font-size:11px;white-space:nowrap;position:sticky;left:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);">${desc}</td>
+      ${machines.map((m,ci)=>`
+        <td style="padding:2px;border-bottom:1px solid var(--border);border-right:1px solid var(--border2);">
+          <input type="number" min="0" value=""
+            id="wbd-cell-${ri}-${ci}"
+            oninput="updateWBDRowTotal(${ri},${machines.length});updateWBDColTotal(${ci},${descs.length});updateWBDGrandTotal(${machines.length},${descs.length})"
+            style="width:42px;text-align:center;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:11px;padding:4px 2px;outline:none;"
+            onfocus="this.style.background='rgba(59,130,246,0.12)'"
+            onblur="this.style.background='transparent'"
+            onkeydown="wbdNavKey(event,${ri},${ci},${machines.length},${descs.length})">
+        </td>`).join('')}
+      <td id="wbd-row-total-${ri}" style="background:rgba(245,158,11,0.06);font-family:var(--mono);font-size:10px;font-weight:700;color:var(--amber);text-align:center;border-bottom:1px solid var(--border);">0</td>
+    </tr>`).join('');
+
+  // Grand Total row
+  tbody.innerHTML += `<tr style="background:var(--surface2);">
+    <td style="padding:6px 10px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--green);position:sticky;left:0;background:var(--surface2);border-top:2px solid var(--green);">Grand Total</td>
+    ${machines.map((_,ci)=>`<td id="wbd-col-total-${ci}" style="text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--green);border-top:2px solid var(--green);padding:5px;">0</td>`).join('')}
+    <td id="wbd-grand-total" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--green);border-top:2px solid var(--green);background:rgba(16,185,129,0.08);padding:5px;">0</td>
+  </tr>`;
+
+  updateWBDGrandTotal(machines.length, descs.length);
+}
+
+function wbdNavKey(e, ri, ci, totalMachines, totalDescs){
+  if(e.key==='Tab'){ e.preventDefault(); const next=document.getElementById(`wbd-cell-${ri}-${ci+1}`)||document.getElementById(`wbd-cell-${ri+1}-0`); if(next) next.focus(); }
+  if(e.key==='Enter'){ e.preventDefault(); const next=document.getElementById(`wbd-cell-${ri+1}-${ci}`); if(next) next.focus(); }
+  if(e.key==='ArrowRight'){ const next=document.getElementById(`wbd-cell-${ri}-${ci+1}`); if(next){e.preventDefault();next.focus();} }
+  if(e.key==='ArrowLeft') { const prev=document.getElementById(`wbd-cell-${ri}-${ci-1}`); if(prev){e.preventDefault();prev.focus();} }
+  if(e.key==='ArrowDown') { const next=document.getElementById(`wbd-cell-${ri+1}-${ci}`); if(next){e.preventDefault();next.focus();} }
+  if(e.key==='ArrowUp')   { const prev=document.getElementById(`wbd-cell-${ri-1}-${ci}`); if(prev){e.preventDefault();prev.focus();} }
+}
+
+function updateWBDRowTotal(ri, totalMachines){
+  let sum=0;
+  for(let ci=0;ci<totalMachines;ci++){ sum+=parseInt(document.getElementById(`wbd-cell-${ri}-${ci}`)?.value||0)||0; }
+  const el=document.getElementById(`wbd-row-total-${ri}`);
+  if(el) el.textContent = sum||'';
+}
+
+function updateWBDColTotal(ci, totalDescs){
+  let sum=0;
+  for(let ri=0;ri<totalDescs;ri++){ sum+=parseInt(document.getElementById(`wbd-cell-${ri}-${ci}`)?.value||0)||0; }
+  const el=document.getElementById(`wbd-col-total-${ci}`);
+  if(el){ el.textContent=sum||'0'; el.style.color=sum>0?'var(--green)':'var(--text-muted)'; }
+}
+
+function updateWBDGrandTotal(totalMachines, totalDescs){
+  let grand=0;
+  for(let ri=0;ri<totalDescs;ri++) for(let ci=0;ci<totalMachines;ci++)
+    grand+=parseInt(document.getElementById(`wbd-cell-${ri}-${ci}`)?.value||0)||0;
+  const el=document.getElementById('wbd-grand-total');
+  if(el){ el.textContent=grand; el.style.color=grand>0?'var(--green)':'var(--text-muted)'; }
+  const prev=document.getElementById('wbd-total-preview');
+  if(prev) prev.textContent=`Grand Total: ${grand} breakdown entries`;
+}
+
+function saveWBDReport(){
+  const week  = document.getElementById('wbd-week').value;
+  const group = document.getElementById('wbd-group').value;
+  const notes = document.getElementById('wbd-notes').value;
+  if(!week){ toast('Pilih periode minggu dulu','err'); return; }
+
+  const machines = getWBDMachines();
+  const descs    = getWBDDescs();
+  const matrix   = {};
+  let grandTotal = 0;
+
+  descs.forEach((desc,ri)=>{
+    matrix[desc]={};
+    machines.forEach((m,ci)=>{
+      const v=parseInt(document.getElementById(`wbd-cell-${ri}-${ci}`)?.value||0)||0;
+      if(v>0){ matrix[desc][m]=v; grandTotal+=v; }
+    });
+  });
+
+  if(grandTotal===0 && !confirm('Grand Total = 0. Tetap simpan?')) return;
+
+  // Simpan ke state.weeklyBDReports
+  if(!Array.isArray(state.weeklyBDReports)) state.weeklyBDReports=[];
+  // Hapus jika week+group sudah ada
+  state.weeklyBDReports = state.weeklyBDReports.filter(r=>!(r.week===week&&r.group===group));
+  state.weeklyBDReports.unshift({
+    id: uid(), week, group, notes,
+    machines, descs, matrix, grandTotal,
+    createdAt: new Date().toISOString()
+  });
+
+  save();
+  closeWBDInputModal();
+  renderWBDView();
+  toast(`✅ Weekly BD Report ${week} disimpan! Total: ${grandTotal} breakdown`);
+}
+
+// Render main view
+function renderWBDView(){
+  if(!Array.isArray(state.weeklyBDReports)||!state.weeklyBDReports.length){
+    renderWBDEmpty(); return;
+  }
+
+  const fWeek  = document.getElementById('wbd-filter-week')?.value||'';
+  const fGroup = document.getElementById('wbd-filter-group')?.value||'';
+
+  let reports = [...state.weeklyBDReports];
+  if(fWeek)  reports=reports.filter(r=>r.week===fWeek);
+  if(fGroup) reports=reports.filter(r=>r.group===fGroup);
+
+  // Populate group filter dropdown
+  const groups = [...new Set(state.weeklyBDReports.map(r=>r.group))];
+  const gSel = document.getElementById('wbd-filter-group');
+  if(gSel){
+    const cur=gSel.value;
+    gSel.innerHTML='<option value="">Semua Group Mesin</option>'+groups.map(g=>`<option value="${g}">${g}</option>`).join('');
+    gSel.value=cur;
+  }
+
+  if(!reports.length){ renderWBDEmpty(); return; }
+
+  // Gunakan report terbaru untuk tampilan matrix
+  const latest = reports[0];
+  renderWBDMatrix(latest);
+  renderWBDKPI(reports);
+  renderWBDPareto(reports);
+  renderWBDTopMachines(reports);
+
+  document.getElementById('wbd-week-label').textContent = `${latest.week} · ${latest.group}${latest.notes?' · '+latest.notes:''}`;
+  document.getElementById('wbd-table-title').textContent = `Breakdown per Mesin — ${latest.week} (${latest.group})`;
+}
+
+function renderWBDEmpty(){
+  document.getElementById('wbd-kpi').innerHTML='';
+  document.getElementById('wbd-matrix-head').innerHTML='';
+  document.getElementById('wbd-matrix-body').innerHTML=`<tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:30px;font-size:12px;">Belum ada data. Klik "+ Input Weekly Report"</td></tr>`;
+  document.getElementById('wbd-pareto').innerHTML='<div style="padding:14px;color:var(--text-muted);font-size:11px;">Belum ada data</div>';
+  document.getElementById('wbd-top-machines').innerHTML='<div style="padding:14px;color:var(--text-muted);font-size:11px;">Belum ada data</div>';
+}
+
+function renderWBDMatrix(r){
+  const machines = r.machines||[];
+  const descs    = r.descs||[];
+  const matrix   = r.matrix||{};
+
+  // Header
+  document.getElementById('wbd-matrix-head').innerHTML =
+    `<th style="background:var(--surface3);padding:7px 12px;font-family:var(--mono);font-size:9px;color:var(--text-muted);position:sticky;left:0;z-index:2;min-width:140px;">Desc</th>` +
+    machines.map(m=>`<th style="background:var(--surface2);padding:7px 6px;font-family:var(--mono);font-size:9px;color:var(--cyan);text-align:center;min-width:42px;">${m}</th>`).join('') +
+    `<th style="background:rgba(245,158,11,0.1);padding:7px 8px;font-family:var(--mono);font-size:9px;color:var(--amber);text-align:center;">Total</th>`;
+
+  // Body
+  let grandTotal=0;
+  const colTotals=Array(machines.length).fill(0);
+
+  const rows = descs.map(desc=>{
+    const rowData=matrix[desc]||{};
+    let rowTotal=0;
+    const cells=machines.map((m,ci)=>{
+      const v=rowData[m]||0;
+      rowTotal+=v; colTotals[ci]+=v; grandTotal+=v;
+      const bg = v>0?(v>=10?'rgba(239,68,68,0.15)':v>=5?'rgba(245,158,11,0.1)':'rgba(16,185,129,0.07)'):'';
+      const col = v>0?(v>=10?'var(--red)':v>=5?'var(--amber)':'var(--green)'):'var(--border)';
+      return `<td style="text-align:center;padding:5px 4px;border-bottom:1px solid var(--border);border-right:1px solid var(--border2);background:${bg};font-family:var(--mono);font-size:10px;font-weight:${v>0?'700':'400'};color:${col};">${v||''}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:5px 12px;font-size:11px;position:sticky;left:0;background:var(--surface);border-bottom:1px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;">${desc}</td>
+      ${cells}
+      <td style="text-align:center;padding:5px 8px;background:rgba(245,158,11,0.06);font-family:var(--mono);font-size:10px;font-weight:700;color:${rowTotal>0?'var(--amber)':'var(--text-muted)'};">${rowTotal||''}</td>
+    </tr>`;
+  });
+
+  // Grand Total row
+  rows.push(`<tr style="background:var(--surface2);">
+    <td style="padding:6px 12px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--green);position:sticky;left:0;background:var(--surface2);border-top:2px solid var(--green);">Grand Total</td>
+    ${colTotals.map(v=>`<td style="text-align:center;padding:6px 4px;font-family:var(--mono);font-size:10px;font-weight:700;color:${v>0?'var(--green)':'var(--text-muted)'};border-top:2px solid var(--green);">${v||'0'}</td>`).join('')}
+    <td style="text-align:center;padding:6px 8px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--green);background:rgba(16,185,129,0.1);border-top:2px solid var(--green);">${grandTotal}</td>
+  </tr>`);
+
+  document.getElementById('wbd-matrix-body').innerHTML=rows.join('');
+}
+
+function renderWBDKPI(reports){
+  // Aggregate semua report yang ditampilkan
+  let totalBD=0, topDesc='—', topDescVal=0, topMach='—', topMachVal=0;
+  const descAgg={}, machAgg={};
+  reports.forEach(r=>{
+    totalBD+=(r.grandTotal||0);
+    Object.entries(r.matrix||{}).forEach(([desc,mData])=>{
+      Object.entries(mData).forEach(([m,v])=>{
+        descAgg[desc]=(descAgg[desc]||0)+v;
+        machAgg[m]=(machAgg[m]||0)+v;
+      });
+    });
+  });
+  if(Object.keys(descAgg).length){ [topDesc,topDescVal]=Object.entries(descAgg).sort((a,b)=>b[1]-a[1])[0]; }
+  if(Object.keys(machAgg).length){ [topMach,topMachVal]=Object.entries(machAgg).sort((a,b)=>b[1]-a[1])[0]; }
+
+  document.getElementById('wbd-kpi').innerHTML=`
+    <div class="stat-card sc-red"><div class="stat-label">Total Breakdown</div><div class="stat-value">${totalBD}</div><div class="stat-sub">${reports.length} minggu</div></div>
+    <div class="stat-card sc-amber"><div class="stat-label">Top Issue</div><div class="stat-value" style="font-size:13px;">${topDesc}</div><div class="stat-sub">${topDescVal}x kejadian</div></div>
+    <div class="stat-card sc-purple"><div class="stat-label">Top Mesin</div><div class="stat-value" style="font-size:18px;">${topMach}</div><div class="stat-sub">${topMachVal}x breakdown</div></div>
+    <div class="stat-card sc-blue"><div class="stat-label">Rata-rata/Minggu</div><div class="stat-value">${reports.length?Math.round(totalBD/reports.length):0}</div><div class="stat-sub">breakdown</div></div>`;
+}
+
+function renderWBDPareto(reports){
+  const agg={};
+  reports.forEach(r=>{ Object.entries(r.matrix||{}).forEach(([desc,mData])=>{ Object.values(mData).forEach(v=>{agg[desc]=(agg[desc]||0)+v;}); }); });
+  const sorted=Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxV=sorted.length?sorted[0][1]:1;
+  document.getElementById('wbd-pareto').innerHTML=sorted.length?sorted.map(([k,v],i)=>`
+    <div class="pareto-item">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text-muted);min-width:16px;">${i+1}</span>
+      <span class="pareto-label" style="min-width:130px;">${k.slice(0,18)}</span>
+      <div class="pareto-bar-wrap"><div class="pareto-bar-fill" style="width:${Math.round(v/maxV*100)}%;background:${i===0?'var(--red)':i<3?'var(--amber)':'var(--blue)'}"></div></div>
+      <span class="pareto-val">${v}x</span>
+    </div>`).join(''):'<div style="padding:14px;color:var(--text-muted);font-size:11px;">Belum ada data</div>';
+}
+
+function renderWBDTopMachines(reports){
+  const agg={};
+  reports.forEach(r=>{ Object.values(r.matrix||{}).forEach(mData=>{ Object.entries(mData).forEach(([m,v])=>{agg[m]=(agg[m]||0)+v;}); }); });
+  const sorted=Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxV=sorted.length?sorted[0][1]:1;
+  document.getElementById('wbd-top-machines').innerHTML=sorted.length?sorted.map(([m,v])=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--purple);min-width:32px;">${m}</span>
+      <div style="flex:1;background:var(--border);height:10px;"><div style="width:${Math.round(v/maxV*100)}%;background:var(--purple);height:10px;"></div></div>
+      <span style="font-family:var(--mono);font-size:10px;min-width:28px;text-align:right;">${v}x</span>
+    </div>`).join(''):'<div style="padding:14px;color:var(--text-muted);font-size:11px;">Belum ada data</div>';
+}
+
+function openWBDHistoryModal(){
+  const reports=state.weeklyBDReports||[];
+  const body=document.getElementById('wbd-history-body');
+  if(!reports.length){
+    body.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada riwayat report</div></div>';
+  } else {
+    body.innerHTML=reports.map(r=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);">
+        <div style="flex:1;">
+          <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--green);">${r.week}</div>
+          <div style="font-size:11px;color:var(--text-dim);">${r.group}${r.notes?' · '+r.notes:''}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text-muted);">${(r.machines||[]).length} mesin · ${(r.descs||[]).length} kategori</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--red);">${r.grandTotal||0}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text-muted);">TOTAL BD</div>
+        </div>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-xs" onclick="viewWBDReport('${r.id}')">👁 View</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteWBDReport('${r.id}')">✕</button>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('wbd-history-modal').classList.add('open');
+}
+
+function viewWBDReport(id){
+  const r=state.weeklyBDReports?.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById('wbd-history-modal').classList.remove('open');
+  // Set filter ke week ini dan render
+  const weekEl=document.getElementById('wbd-filter-week');
+  const grpEl=document.getElementById('wbd-filter-group');
+  if(weekEl) weekEl.value=r.week;
+  if(grpEl) grpEl.value=r.group;
+  renderWBDMatrix(r);
+  renderWBDKPI([r]);
+  renderWBDPareto([r]);
+  renderWBDTopMachines([r]);
+  document.getElementById('wbd-week-label').textContent=`${r.week} · ${r.group}${r.notes?' · '+r.notes:''}`;
+}
+
+function deleteWBDReport(id){
+  if(!confirm('Hapus report ini?')) return;
+  state.weeklyBDReports=state.weeklyBDReports.filter(x=>x.id!==id);
+  save(); openWBDHistoryModal(); renderWBDView(); toast('Report dihapus');
+}
+
+// ISO week number helper
+function getISOWeek(date){
+  const d=new Date(date); d.setHours(0,0,0,0);
+  d.setDate(d.getDate()+4-(d.getDay()||7));
+  const yearStart=new Date(d.getFullYear(),0,1);
+  return Math.ceil((((d-yearStart)/86400000)+1)/7);
+}
+
+// ===============================
+// BULK IMPORT
+// ===============================
+const BULK_CONFIG = {
+  wo: {
+    title: 'BULK IMPORT — WORK ORDER',
+    hint: 'Copy dari Excel/Sheets. Kolom harus sesuai urutan template di bawah.',
+    cols: [
+      {key:'date',       label:'Tanggal',        hint:'YYYY-MM-DD',              required:true},
+      {key:'type',       label:'Jenis',           hint:'corrective/preventive/emergency/improvement', required:true},
+      {key:'machine',    label:'Mesin/Area',      hint:'D1, D2, ...',             required:true},
+      {key:'desc',       label:'Deskripsi',       hint:'Uraian pekerjaan',        required:true},
+      {key:'priority',   label:'Prioritas',       hint:'C/H/M/L',                 required:false},
+      {key:'pic',        label:'Assigned To',     hint:'Nama teknisi',            required:false},
+      {key:'estDuration',label:'Est. Durasi (jam)',hint:'2.5',                    required:false},
+      {key:'target',     label:'Target Selesai',  hint:'YYYY-MM-DD',              required:false},
+      {key:'status',     label:'Status',          hint:'open/assigned/progress/done', required:false},
+    ],
+    parse: (row) => ({
+      id: uid(), no: woNo(),
+      date:        row.date        || new Date().toISOString().slice(0,10),
+      type:        normalizeType(row.type),
+      machine:     row.machine     || '',
+      desc:        row.desc        || '',
+      priority:    normalizePrio(row.priority),
+      pic:         row.pic         || '',
+      estDuration: row.estDuration || '',
+      target:      row.target      || '',
+      status:      normalizeStatus(row.status, ['open','assigned','progress','done','closed','cancel'], 'open'),
+      downtime: '', action: '', rootcause: '', spareUsed: '', toolsUsed: '', progress: 0,
+      createdAt: new Date().toISOString(),
+    }),
+    validate: (r) => r.machine && r.desc,
+    onImport: (items) => {
+      state.woList.push(...items);
+      save(); renderWOList(); renderDashboard(); populateNavBadges();
+    },
+  },
+
+  pm: {
+    title: 'BULK IMPORT — PM SCHEDULE',
+    hint: 'Copy dari Excel/Sheets. Kolom harus sesuai urutan template.',
+    cols: [
+      {key:'machine',  label:'Mesin',           hint:'D1, D2, ...',                required:true},
+      {key:'type',     label:'Tipe PM',          hint:'Ganti Oli, Kalibrasi...',    required:true},
+      {key:'freq',     label:'Frekuensi',        hint:'daily/weekly/monthly/quarterly/yearly', required:true},
+      {key:'date',     label:'Jadwal (Tgl)',      hint:'YYYY-MM-DD',                required:true},
+      {key:'pic',      label:'PIC Teknisi',      hint:'Nama teknisi',               required:false},
+      {key:'duration', label:'Durasi (jam)',      hint:'2',                          required:false},
+      {key:'status',   label:'Status',           hint:'open/progress/done/overdue', required:false},
+      {key:'desc',     label:'Deskripsi',        hint:'Uraian PM',                  required:false},
+    ],
+    parse: (row) => ({
+      id: uid(), no: pmNo(),
+      machine:  row.machine  || '',
+      type:     row.type     || '',
+      freq:     normalizeFreq(row.freq),
+      date:     row.date     || '',
+      pic:      row.pic      || '',
+      duration: row.duration || '',
+      status:   normalizeStatus(row.status, ['open','progress','done','overdue'], 'open'),
+      desc:     row.desc     || '',
+      notes:    '',
+      createdAt: new Date().toISOString(),
+    }),
+    validate: (r) => r.machine && r.type && r.date,
+    onImport: (items) => {
+      state.pmList.push(...items);
+      save(); renderPMList(); renderCalendar(); renderDashboard(); populateNavBadges();
+    },
+  },
+
+  spare: {
+    title: 'BULK IMPORT — SPARE PART',
+    hint: 'Copy dari Excel/Sheets. Kolom sesuai urutan template.',
+    cols: [
+      {key:'partno',   label:'Part Number',     hint:'SKF-6205',    required:false},
+      {key:'name',     label:'Nama Part',        hint:'Bearing SKF', required:true},
+      {key:'machine',  label:'Mesin Terkait',    hint:'D1',          required:false},
+      {key:'stock',    label:'Stok',             hint:'10',          required:true},
+      {key:'min',      label:'Min Stok',         hint:'3',           required:false},
+      {key:'unit',     label:'Satuan',           hint:'pcs/set/m/L', required:false},
+      {key:'location', label:'Lokasi Simpan',    hint:'Rak A-1',     required:false},
+    ],
+    parse: (row) => ({
+      id: uid(),
+      partno:   row.partno   || '',
+      name:     row.name     || '',
+      machine:  row.machine  || '',
+      stock:    row.stock    || '0',
+      min:      row.min      || '0',
+      unit:     row.unit     || 'pcs',
+      location: row.location || '',
+      restock:  new Date().toISOString().slice(0,10),
+      notes:    '',
+    }),
+    validate: (r) => r.name,
+    onImport: (items) => {
+      state.spareList.push(...items);
+      save(); renderSpare(); renderDashboard(); populateNavBadges();
+    },
+  },
+
+  tech: {
+    title: 'BULK IMPORT — TEKNISI',
+    hint: 'Copy dari Excel/Sheets. Kolom sesuai urutan template.',
+    cols: [
+      {key:'name',   label:'Nama Teknisi', hint:'Nama lengkap',              required:true},
+      {key:'shift',  label:'Shift',        hint:'1/2/3/all',                 required:false},
+      {key:'skill',  label:'Skill',        hint:'Electrical, Mechanical...', required:false},
+      {key:'status', label:'Status',       hint:'available/busy/off',        required:false},
+      {key:'phone',  label:'No. Telp',     hint:'08xx-xxxx-xxxx',            required:false},
+    ],
+    parse: (row) => ({
+      id: uid(),
+      name:   row.name   || '',
+      shift:  row.shift  || '1',
+      skill:  row.skill  || '',
+      status: normalizeStatus(row.status, ['available','busy','off'], 'available'),
+      phone:  row.phone  || '',
+    }),
+    validate: (r) => r.name,
+    onImport: (items) => {
+      state.techList.push(...items);
+      save(); renderTechList(); populateTechSelects(); renderWorkload();
+    },
+  },
+
+  tools: {
+    title: 'BULK IMPORT — TOOLS',
+    hint: 'Copy dari Excel/Sheets. Kolom sesuai urutan template.',
+    cols: [
+      {key:'name',     label:'Nama Tools',  hint:'Kunci Inggris 12"',     required:true},
+      {key:'code',     label:'Kode Tools',  hint:'TL-001',                required:false},
+      {key:'status',   label:'Status',      hint:'available/inuse/rusak', required:false},
+      {key:'location', label:'Lokasi',      hint:'Tool Box A',            required:false},
+    ],
+    parse: (row) => ({
+      id: uid(),
+      name:     row.name     || '',
+      code:     row.code     || '',
+      status:   normalizeStatus(row.status, ['available','inuse','rusak'], 'available'),
+      location: row.location || '',
+      usedBy:   '',
+      woRef:    '',
+    }),
+    validate: (r) => r.name,
+    onImport: (items) => {
+      state.toolsList.push(...items);
+      save(); renderToolsList();
+    },
+  },
+
+  machine: {
+    title: 'BULK IMPORT — MASTER MESIN',
+    hint: 'Copy dari Excel/Sheets. Kolom sesuai urutan template.',
+    cols: [
+      {key:'id',       label:'ID Mesin',   hint:'D1, D15',                           required:true},
+      {key:'name',     label:'Nama Mesin', hint:'Mesin Filling D1',                  required:true},
+      {key:'type',     label:'Tipe/Fungsi',hint:'Pouch Filling, Sealing...',          required:false},
+      {key:'brand',    label:'Brand/Model',hint:'Omron NX1P2',                        required:false},
+      {key:'year',     label:'Tahun',      hint:'2020',                               required:false},
+      {key:'location', label:'Lokasi',     hint:'Area Produksi, Lantai 2',            required:false},
+      {key:'status',   label:'Status',     hint:'active/standby/maintenance/breakdown',required:false},
+    ],
+    parse: (row) => ({
+      id:       (row.id||'').toUpperCase(),
+      name:     row.name     || '',
+      type:     row.type     || '',
+      brand:    row.brand    || '',
+      year:     row.year     || '',
+      location: row.location || '',
+      serial:   '',
+      status:   normalizeStatus(row.status, ['active','standby','maintenance','breakdown','retired'], 'active'),
+      notes:    '',
+    }),
+    validate: (r) => r.id && r.name,
+    onImport: (items) => {
+      // Skip jika ID sudah ada
+      const existing = new Set(state.machineList.map(m=>m.id));
+      const newItems = items.filter(m => !existing.has(m.id));
+      state.machineList.push(...newItems);
+      save(); populateMachineSelects(); renderMachineList(); renderDashboard();
+      if(newItems.length < items.length)
+        toast(`${items.length-newItems.length} mesin dilewati (ID duplikat)`, 'warn');
+    },
+  },
+};
+
+// Normalizer helpers
+function normalizeType(v){
+  const s=(v||'').toLowerCase().trim();
+  if(s.includes('correct')||s==='c') return 'corrective';
+  if(s.includes('prevent')||s==='p') return 'preventive';
+  if(s.includes('emerg')||s==='e')   return 'emergency';
+  if(s.includes('improv')||s==='i')  return 'improvement';
+  return 'corrective';
+}
+function normalizePrio(v){
+  const s=(v||'').toUpperCase().trim();
+  if(s==='C'||s==='CRITICAL')  return 'C';
+  if(s==='H'||s==='HIGH')      return 'H';
+  if(s==='L'||s==='LOW')       return 'L';
+  return 'M';
+}
+function normalizeFreq(v){
+  const s=(v||'').toLowerCase().trim();
+  if(s.includes('daily')||s.includes('harian'))     return 'daily';
+  if(s.includes('week')||s.includes('mingg'))       return 'weekly';
+  if(s.includes('month')||s.includes('bul'))        return 'monthly';
+  if(s.includes('quart')||s.includes('triw'))       return 'quarterly';
+  if(s.includes('year')||s.includes('tah'))         return 'yearly';
+  return 'monthly';
+}
+function normalizeStatus(v, allowed, def){
+  const s=(v||'').toLowerCase().trim();
+  return allowed.find(a=>a.startsWith(s)||s.startsWith(a)) || def;
+}
+
+// State bulk modal
+let _bulkType = null;
+let _bulkParsed = [];
+
+function openBulkModal(type){
+  _bulkType = type;
+  _bulkParsed = [];
+  const cfg = BULK_CONFIG[type];
+  if(!cfg) return;
+
+  document.getElementById('bulk-modal-title').textContent = cfg.title;
+  document.getElementById('bulk-format-hint').textContent = cfg.hint;
+  document.getElementById('bulk-paste-area').value = '';
+  document.getElementById('bulk-preview-wrap').style.display = 'none';
+  document.getElementById('bulk-row-count').textContent = '0 baris';
+  document.getElementById('bulk-error-count').textContent = '';
+  document.getElementById('bulk-footer-info').textContent = '';
+  document.getElementById('bulk-import-count').textContent = '0';
+  document.getElementById('bulk-import-btn').disabled = true;
+  document.getElementById('bulk-import-btn').style.opacity = '0.5';
+
+  // Render template header
+  const cols = cfg.cols;
+  document.getElementById('bulk-template-header').textContent =
+    cols.map(c => c.label + (c.required?' *':'')).join('\t  ');
+
+  // Render preview table head
+  document.getElementById('bulk-preview-head').innerHTML =
+    cols.map(c=>`<th>${c.label}${c.required?'<span style="color:var(--red)">*</span>':''}</th>`).join('') +
+    '<th>Status</th>';
+
+  document.getElementById('bulk-modal').classList.add('open');
+}
+
+function closeBulkModal(){
+  document.getElementById('bulk-modal').classList.remove('open');
+  _bulkType = null; _bulkParsed = [];
+}
+
+function copyBulkTemplate(){
+  const cfg = BULK_CONFIG[_bulkType];
+  if(!cfg) return;
+  const header = cfg.cols.map(c=>c.label).join('\t');
+  const example = cfg.cols.map(c=>c.hint).join('\t');
+  navigator.clipboard.writeText(header + '\n' + example).then(()=>{
+    toast('Template disalin! Paste di Excel/Sheets sebagai header, lalu isi datanya.');
+  }).catch(()=>{
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = header + '\n' + example;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Template disalin ✓');
+  });
+}
+
+function parseBulkPreview(){
+  const cfg = BULK_CONFIG[_bulkType];
+  if(!cfg) return;
+  const raw = document.getElementById('bulk-paste-area').value.trim();
+  if(!raw){ document.getElementById('bulk-preview-wrap').style.display='none'; return; }
+
+  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  const cols   = cfg.cols;
+  _bulkParsed  = [];
+  let errCount = 0;
+
+  // Deteksi apakah baris pertama adalah header (tidak valid sebagai data)
+  const firstCells = lines[0].split('\t');
+  const isHeader = firstCells.some(c =>
+    cols.some(col => col.label.toLowerCase() === c.toLowerCase().trim() ||
+                     col.key.toLowerCase()   === c.toLowerCase().trim())
+  );
+  const dataLines = isHeader ? lines.slice(1) : lines;
+
+  const previewRows = [];
+  dataLines.forEach((line, idx) => {
+    const cells = line.split('\t').map(c=>c.trim());
+    const obj   = {};
+    cols.forEach((col, i) => { obj[col.key] = cells[i] || ''; });
+    const valid  = cfg.validate(obj);
+    const parsed = valid ? cfg.parse(obj) : null;
+    if(parsed) _bulkParsed.push(parsed);
+    else errCount++;
+    previewRows.push({cells: cols.map(col=>obj[col.key]), valid});
+  });
+
+  // Render preview table
+  const tbody = document.getElementById('bulk-preview-body');
+  tbody.innerHTML = previewRows.slice(0,50).map(r=>`
+    <tr style="background:${r.valid?'':'rgba(239,68,68,0.06)'}">
+      ${r.cells.map(c=>`<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c}">${c||'—'}</td>`).join('')}
+      <td>${r.valid
+        ? '<span class="badge b-done">✓ Valid</span>'
+        : '<span class="badge b-overdue">✗ Error</span>'}</td>
+    </tr>`).join('');
+
+  if(previewRows.length > 50){
+    tbody.innerHTML += `<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-muted);font-size:10px;padding:8px;">...dan ${previewRows.length-50} baris lagi</td></tr>`;
+  }
+
+  document.getElementById('bulk-preview-wrap').style.display = 'block';
+  document.getElementById('bulk-row-count').textContent = dataLines.length + ' baris';
+  document.getElementById('bulk-error-count').textContent = errCount > 0 ? `⚠ ${errCount} baris error (dilewati)` : '';
+  document.getElementById('bulk-footer-info').textContent =
+    `${_bulkParsed.length} valid · ${errCount} dilewati` + (isHeader?' · Baris header terdeteksi & dilewati':'');
+  document.getElementById('bulk-import-count').textContent = _bulkParsed.length;
+
+  const btn = document.getElementById('bulk-import-btn');
+  btn.disabled = _bulkParsed.length === 0;
+  btn.style.opacity = _bulkParsed.length > 0 ? '1' : '0.5';
+}
+
+function executeBulkImport(){
+  if(!_bulkParsed.length){ toast('Tidak ada data valid untuk diimport','err'); return; }
+  const cfg = BULK_CONFIG[_bulkType];
+  if(!cfg) return;
+  cfg.onImport(_bulkParsed);
+  toast(`✅ ${_bulkParsed.length} data berhasil diimport!`);
+  closeBulkModal();
 }
 
 // ===============================
