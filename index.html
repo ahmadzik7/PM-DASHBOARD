@@ -1735,7 +1735,8 @@ let state = {
 // KONFIGURASI GAS
 // ===============================
 // Isi URL GAS Web App kamu di sini setelah deploy:
-let GAS_URL = localStorage.getItem('pm_gas_url') || '';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwWPB2n6dnB1Ea76lNvm3_SpWK9cwkb3gx9k8QW4YRTB5KFOcfOQF3i1r6ErjaW4Hzhfw/exec';
+let GAS_URL = localStorage.getItem('pm_gas_url') || DEFAULT_GAS_URL;
 
 // ===============================
 // STORAGE — Google Drive via GAS
@@ -4506,10 +4507,9 @@ async function forceLoadNow(){
 function renderSysInfo(){
   const el=document.getElementById('sys-info');
   if(!el) return;
-  const gasUrl = localStorage.getItem('pm_gas_url');
-  // also populate the URL input field
+  const gasUrl = localStorage.getItem('pm_gas_url') || DEFAULT_GAS_URL;
   const inp = document.getElementById('gas-url-input');
-  if(inp && gasUrl) inp.value = gasUrl;
+  if(inp) inp.value = gasUrl;
   el.innerHTML=`
     <div>Versi: <b>PM Command Center v2.0</b></div>
     <div>Pengguna: <b>${state.user||'—'}</b> · Role: <b>${state.role||'—'}</b></div>
@@ -4517,6 +4517,7 @@ function renderSysInfo(){
     <div>GAS URL: <b style="font-size:9px;word-break:break-all;">${gasUrl?gasUrl.slice(0,60)+'...':'Belum diisi'}</b></div>
     <div>Total Mesin: <b>${state.machineList.length}</b></div>
     <div>Total WO: <b>${state.woList.length}</b> · PM: <b>${state.pmList.length}</b> · Project: <b>${(state.projectList||[]).length}</b></div>
+    <div>Laporan Teknisi: <b>${(state.techReports||[]).length}</b> laporan masuk</div>
     <div>Spare Part: <b>${state.spareList.length}</b> · Tools: <b>${state.toolsList.length}</b></div>
     <div>Teknisi: <b>${state.techList.length}</b></div>
     <div>Notifikasi: <b>${state.notifications.length}</b> (Unread: ${state.notifications.filter(n=>!n.read).length})</div>
