@@ -272,8 +272,7 @@ select option{background:#fff;}
 .user-box h2{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:var(--blue);margin-bottom:6px;}
 .user-box p{font-size:11px;color:var(--text-muted);margin-bottom:18px;}
 .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;}
-.role-btn{padding:12px;border:2px solid var(--border);background:#f8fafc;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-dim);transition:all 0.15s;text-align:center;border-radius:8px;}
-.role-btn:hover,.role-btn.selected{border-color:var(--blue);color:var(--blue);background:#eff6ff;}
+.role-btn{display:none;}
 .role-icon{font-size:22px;display:block;margin-bottom:5px;}
 
 /* DETAIL PANEL */
@@ -360,17 +359,33 @@ select option{background:#fff;}
 <!-- USER OVERLAY -->
 <div class="user-overlay" id="userOverlay">
   <div class="user-box">
-    <div style="font-size:32px;margin-bottom:12px;">⚙️</div>
-    <h2>PM COMMAND CENTER</h2>
-    <p>Pilih role dan masukkan nama Anda</p>
-    <div class="role-grid" id="roleGrid">
-      <div class="role-btn selected" onclick="selectRole('Admin',this)"><span class="role-icon">👑</span>Admin</div>
-      <div class="role-btn" onclick="selectRole('Planner',this)"><span class="role-icon">📋</span>Planner</div>
-      <div class="role-btn" onclick="selectRole('Supervisor',this)"><span class="role-icon">👔</span>Supervisor</div>
-      <div class="role-btn" onclick="selectRole('Teknisi',this)"><span class="role-icon">🔧</span>Teknisi</div>
+    <div style="font-size:40px;margin-bottom:14px;">⚙️</div>
+    <h2 style="margin-bottom:4px;">PM COMMAND CENTER</h2>
+    <p style="margin-bottom:22px;">Masukkan nama dan password untuk masuk</p>
+
+    <input type="text" id="userNameInput" placeholder="Nama lengkap Anda..."
+      style="margin-bottom:10px;text-align:center;"
+      onkeydown="if(event.key==='Enter') document.getElementById('userPassInput').focus()">
+
+    <div style="position:relative;margin-bottom:16px;">
+      <input type="password" id="userPassInput" placeholder="Password..."
+        style="text-align:center;width:100%;padding-right:44px;"
+        onkeydown="if(event.key==='Enter') setUser()">
+      <button onclick="togglePassVis()" id="pass-eye-btn"
+        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+               background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);
+               padding:2px 4px;">👁</button>
     </div>
-    <input type="text" id="userNameInput" placeholder="Nama lengkap Anda..." style="margin-bottom:12px;text-align:center;">
-    <button class="btn btn-blue" style="width:100%;font-size:12px;" onclick="setUser()">MASUK SISTEM</button>
+
+    <div id="login-err" style="display:none;color:#ef4444;font-size:11px;
+         background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);
+         border-radius:6px;padding:8px 12px;margin-bottom:12px;text-align:center;">
+      ❌ Password salah. Hubungi administrator.
+    </div>
+
+    <button class="btn btn-blue" style="width:100%;font-size:13px;padding:13px;" onclick="setUser()">
+      MASUK SISTEM →
+    </button>
   </div>
 </div>
 
@@ -497,7 +512,7 @@ select option{background:#fff;}
         </div>
         <div class="tbl-wrap">
           <table><thead><tr>
-            <th>WO#</th><th>Tanggal</th><th>Mesin/Area</th><th>Jenis</th><th>Deskripsi</th><th>Prioritas</th><th>Assigned To</th><th>Est. Durasi</th><th>Target</th><th>Status</th><th>Laporan</th><th>Aksi</th>
+            <th>WO#</th><th>Tanggal</th><th>Mesin/Area</th><th>Section</th><th>Jenis</th><th>Deskripsi</th><th>Prioritas</th><th>Assigned To</th><th>MTTR (mnt)</th><th>Target</th><th>Status</th><th>Laporan</th><th>Aksi</th>
           </tr></thead>
           <tbody id="wo-tbody"></tbody></table>
         </div>
@@ -1016,6 +1031,10 @@ select option{background:#fff;}
           <select id="wo-machine"></select>
         </div>
         <div class="form-group">
+          <label>Section</label>
+          <input type="text" id="wo-section" placeholder="Sealing / Coding / Open Vacuum...">
+        </div>
+        <div class="form-group">
           <label>Prioritas</label>
           <select id="wo-priority">
             <option value="C">🔴 Critical</option>
@@ -1023,6 +1042,11 @@ select option{background:#fff;}
             <option value="M" selected>🟡 Medium</option>
             <option value="L">🟢 Low</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label>MTTR (menit)</label>
+          <input type="number" id="wo-mttr" placeholder="30" min="0" step="5"
+            oninput="document.getElementById('wo-est-duration').value=(this.value?(parseFloat(this.value)/60).toFixed(1):'')">
         </div>
         <div class="form-group full">
           <label>Deskripsi Problem / Pekerjaan</label>
@@ -1033,8 +1057,8 @@ select option{background:#fff;}
           <select id="wo-pic"></select>
         </div>
         <div class="form-group">
-          <label>Estimasi Durasi (jam)</label>
-          <input type="number" id="wo-est-duration" placeholder="2" min="0.5" step="0.5">
+          <label>Estimasi Durasi (jam) — auto dari MTTR</label>
+          <input type="number" id="wo-est-duration" placeholder="0.5" min="0.5" step="0.5">
         </div>
         <div class="form-group">
           <label>Target Selesai</label>
@@ -1641,11 +1665,20 @@ select option{background:#fff;}
         <span id="bulk-format-hint">Copy dari Excel/Google Sheets lalu paste di area bawah. Pisah kolom dengan TAB, baris dengan Enter.</span>
       </div>
 
+      <!-- WO-specific tip -->
+      <div id="wo-bulk-tip" style="display:none;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:11px;color:var(--amber);">
+        <b>📊 Cara pakai Weekly Job List Excel:</b><br>
+        1. Pilih semua baris data (termasuk header No/Mesin/Section/Job List/MTTR)<br>
+        2. Copy (Ctrl+C) → Paste di kotak bawah (Ctrl+V)<br>
+        3. Baris dengan Mesin kosong (merged cell) otomatis inherit dari baris atas<br>
+        4. Kolom Total & nama teknisi otomatis dilewati
+      </div>
+
       <!-- Column Header Template -->
       <div style="margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <label>TEMPLATE KOLOM</label>
-          <button class="btn btn-ghost btn-xs" onclick="copyBulkTemplate()">📋 Copy Template</button>
+          <label>URUTAN KOLOM (sesuai Excel kamu)</label>
+          <button class="btn btn-ghost btn-xs" onclick="copyBulkTemplate()">📋 Copy Template Header</button>
         </div>
         <div id="bulk-template-header" style="background:var(--surface2);border:1px solid var(--border);padding:8px 12px;font-family:var(--mono);font-size:10px;color:var(--cyan);white-space:nowrap;overflow-x:auto;letter-spacing:0.5px;"></div>
       </div>
@@ -1799,7 +1832,7 @@ function setSyncStatus(status){
   const sub = document.getElementById('headerSub');
   if(!sub) return;
   const icons = {saving:'⏳ Menyimpan...', ok:'☁️ Tersimpan', err:'⚠️ Gagal simpan', offline:'💾 Offline (lokal)'};
-  const base = `👤 ${state.user||'—'} · ${state.role||'—'} · ${state.machineList.length} Mesin`;
+  const base = `👤 ${state.user||'—'} · ${state.machineList.length} Mesin`;
   sub.textContent = base + '  ' + (icons[status]||'');
 }
 
@@ -1903,22 +1936,39 @@ function toast(msg, type='ok'){
 }
 
 // ===============================
-// USER / ROLE
+// USER / PASSWORD LOGIN
 // ===============================
-function selectRole(role, el){
-  state.selectedRole = role;
-  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
+const APP_PASSWORD = 'PMBAS1';
+
+function togglePassVis(){
+  const inp = document.getElementById('userPassInput');
+  const btn = document.getElementById('pass-eye-btn');
+  if(inp.type === 'password'){ inp.type='text'; btn.textContent='🙈'; }
+  else { inp.type='password'; btn.textContent='👁'; }
 }
-function showUserOverlay(){ document.getElementById('userOverlay').style.display='flex'; }
+
+function showUserOverlay(){
+  document.getElementById('userOverlay').style.display='flex';
+  document.getElementById('login-err').style.display='none';
+  document.getElementById('userPassInput').value='';
+}
+
 function setUser(){
-  const n = document.getElementById('userNameInput').value.trim();
+  const n    = document.getElementById('userNameInput').value.trim();
+  const pass = document.getElementById('userPassInput').value;
   if(!n){ toast('Masukkan nama dulu','err'); return; }
-  const role = state.selectedRole || 'Admin';
-  state.user = n; state.role = role;
-  localStorage.setItem('pm_user', JSON.stringify({name:n, role:role}));
+  if(pass !== APP_PASSWORD){
+    document.getElementById('login-err').style.display='block';
+    document.getElementById('userPassInput').value='';
+    document.getElementById('userPassInput').focus();
+    return;
+  }
+  document.getElementById('login-err').style.display='none';
+  state.user = n;
+  state.role = 'Admin'; // semua user role Admin (password gating)
+  localStorage.setItem('pm_user', JSON.stringify({name:n, role:'Admin'}));
   document.getElementById('userOverlay').style.display='none';
-  document.getElementById('headerSub').textContent = `👤 ${n} · ${role} · ${state.machineList.length} Mesin`;
+  document.getElementById('headerSub').textContent = `👤 ${n} · ${state.machineList.length} Mesin`;
   populateTechSelects();
   initAll();
 }
@@ -2233,11 +2283,16 @@ function renderWOList(){
       </td>
       <td style="font-family:var(--mono);font-size:9px;">${fmtDate(w.date||w.createdAt?.slice(0,10))}</td>
       <td><b>${w.machine}</b></td>
+      <td style="font-size:10px;">${w.section
+        ? `<span style="background:rgba(245,158,11,.12);color:var(--amber);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;">${w.section}</span>`
+        : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td><span class="badge ${w.type==='emergency'?'b-overdue':w.type==='improvement'?'b-assigned':'b-open'}">${TYPE_LABEL[w.type]||w.type}</span></td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${w.desc}">${w.desc||'—'}</td>
       <td>${prioBadge(w.priority)}</td>
       <td>${w.pic||'—'}</td>
-      <td style="font-family:var(--mono);font-size:10px;">${w.estDuration?w.estDuration+'h':'—'}</td>
+      <td style="font-family:var(--mono);font-size:10px;text-align:center;">
+        ${w.mttr ? `<b>${w.mttr}</b><span style="color:var(--text-muted);font-size:8px;"> mnt</span>` : w.estDuration ? w.estDuration+'h' : '—'}
+      </td>
       <td style="font-family:var(--mono);font-size:9px;">${w.target?fmtDate(w.target):'—'}</td>
       <td>${statusBadge(w.status)}</td>
       <td>
@@ -2253,7 +2308,7 @@ function renderWOList(){
         </div>
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:24px;">Belum ada Work Order. Klik "+ Buat WO".</td></tr>';
+  }).join('') : '<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:24px;">Belum ada Work Order. Klik "+ Buat WO".</td></tr>';
 }
 function filterWO(){ renderWOList(); }
 
@@ -2512,6 +2567,8 @@ function openWOModal(id=null){
         target:w.target,status:w.status,downtime:w.downtime,action:w.action,
         rootcause:w.rootcause,'spare-used':w.spareUsed,'tools-used':w.toolsUsed},'wo-');
       document.getElementById('wo-est-duration').value = w.estDuration||'';
+      document.getElementById('wo-section').value = w.section||'';
+      document.getElementById('wo-mttr').value = w.mttr||'';
       const pp = document.getElementById('wo-pic');
       if(pp){ const hasOpt = [...pp.options].some(o=>o.value===w.pic); if(hasOpt) pp.value=w.pic; else { pp.value='__manual'; } }
       const prog = document.getElementById('wo-progress');
@@ -2526,6 +2583,8 @@ function openWOModal(id=null){
     document.getElementById('wo-progress').value=0;
     document.getElementById('wo-progress-val').textContent='0%';
     document.getElementById('wo-est-duration').value='';
+    document.getElementById('wo-section').value='';
+    document.getElementById('wo-mttr').value='';
   }
   document.getElementById('wo-modal').classList.add('open');
 }
@@ -2536,10 +2595,13 @@ function saveWO(){
   if(!machine||!desc){ toast('Mesin dan deskripsi wajib diisi','err'); return; }
   let pic = gv('wo-pic');
   if(pic==='__manual') pic = '';
+  const mttrVal = document.getElementById('wo-mttr').value;
   const data = {
     date: gv('wo-date')||new Date().toISOString().slice(0,10),
     machine, type:gv('wo-type'), desc, priority:gv('wo-priority'),
-    pic, estDuration: document.getElementById('wo-est-duration').value,
+    section: document.getElementById('wo-section').value.trim(),
+    mttr: mttrVal,
+    pic, estDuration: mttrVal ? (parseFloat(mttrVal)/60).toFixed(1) : document.getElementById('wo-est-duration').value,
     target:gv('wo-target'), status:gv('wo-status'), downtime:gv('wo-downtime'),
     action:gv('wo-action'), rootcause:gv('wo-rootcause'),
     spareUsed:gv('wo-spare-used'), toolsUsed:gv('wo-tools-used'),
@@ -2552,7 +2614,6 @@ function saveWO(){
   } else {
     state.woList.push({id:uid(),no:woNo(),...data,createdAt:new Date().toISOString()});
     toast('Work Order dibuat ✓');
-    // Add assignment notification
     if(data.pic) addNotification('assign','🔔',`WO Baru Diassign`,`${data.machine} → ${data.pic}: ${data.desc?.slice(0,50)}`);
   }
   save(); closeWOModal(); renderWOList(); renderDashboard(); populateNavBadges();
@@ -4103,31 +4164,32 @@ function getISOWeek(date){
 // ===============================
 const BULK_CONFIG = {
   wo: {
-    title: 'BULK IMPORT — WORK ORDER',
-    hint: 'Copy dari Excel/Sheets. Kolom harus sesuai urutan template di bawah.',
+    title: 'BULK IMPORT — WEEKLY JOB LIST',
+    hint: 'Copy langsung dari Excel weekly job list. Kolom: No | Mesin | Section | Job List | MTTR (menit) | PIC (opsional)',
     cols: [
-      {key:'date',       label:'Tanggal',        hint:'YYYY-MM-DD',              required:true},
-      {key:'type',       label:'Jenis',           hint:'corrective/preventive/emergency/improvement', required:true},
-      {key:'machine',    label:'Mesin/Area',      hint:'D1, D2, ...',             required:true},
-      {key:'desc',       label:'Deskripsi',       hint:'Uraian pekerjaan',        required:true},
-      {key:'priority',   label:'Prioritas',       hint:'C/H/M/L',                 required:false},
-      {key:'pic',        label:'Assigned To',     hint:'Nama teknisi',            required:false},
-      {key:'estDuration',label:'Est. Durasi (jam)',hint:'2.5',                    required:false},
-      {key:'target',     label:'Target Selesai',  hint:'YYYY-MM-DD',              required:false},
-      {key:'status',     label:'Status',          hint:'open/assigned/progress/done', required:false},
+      {key:'no',      label:'No',        hint:'1',                     required:false},
+      {key:'machine', label:'Mesin',     hint:'D1',                    required:true},
+      {key:'section', label:'Section',   hint:'Sealing / Coding / ...',required:false},
+      {key:'desc',    label:'Job List',  hint:'Ganti bearing D1',      required:true},
+      {key:'mttr',    label:'MTTR (mnt)',hint:'30',                    required:false},
+      {key:'pic',     label:'PIC',       hint:'Nama teknisi',          required:false},
+      {key:'priority',label:'Prioritas', hint:'C/H/M/L (opsional)',    required:false},
+      {key:'target',  label:'Target',    hint:'YYYY-MM-DD (opsional)', required:false},
     ],
     parse: (row) => ({
       id: uid(), no: woNo(),
-      date:        row.date        || new Date().toISOString().slice(0,10),
-      type:        normalizeType(row.type),
+      date:        new Date().toISOString().slice(0,10),
+      type:        normalizeSectionType(row.section),
       machine:     row.machine     || '',
+      section:     row.section     || '',
       desc:        row.desc        || '',
       priority:    normalizePrio(row.priority),
       pic:         row.pic         || '',
-      estDuration: row.estDuration || '',
+      mttr:        row.mttr        || '',
+      estDuration: row.mttr ? (parseFloat(row.mttr)/60).toFixed(1) : '',
       target:      row.target      || '',
-      status:      normalizeStatus(row.status, ['open','assigned','progress','done','closed','cancel'], 'open'),
-      downtime: '', action: '', rootcause: '', spareUsed: '', toolsUsed: '', progress: 0,
+      status:      'open',
+      downtime:'', action:'', rootcause:'', spareUsed:'', toolsUsed:'', progress:0,
       createdAt: new Date().toISOString(),
     }),
     validate: (r) => r.machine && r.desc,
@@ -4317,6 +4379,18 @@ function normalizeStatus(v, allowed, def){
   return allowed.find(a=>a.startsWith(s)||s.startsWith(a)) || def;
 }
 
+// Mapping Section → WO type
+function normalizeSectionType(section){
+  const s=(section||'').toLowerCase().trim();
+  if(s.includes('sealing'))    return 'corrective';
+  if(s.includes('coding'))     return 'corrective';
+  if(s.includes('open vacum')||s.includes('vacuum')) return 'corrective';
+  if(s.includes('preventive')||s.includes('pm'))     return 'preventive';
+  if(s.includes('improv'))     return 'improvement';
+  if(s.includes('emerg'))      return 'emergency';
+  return 'corrective';
+}
+
 // State bulk modal
 let _bulkType = null;
 let _bulkParsed = [];
@@ -4337,6 +4411,9 @@ function openBulkModal(type){
   document.getElementById('bulk-import-count').textContent = '0';
   document.getElementById('bulk-import-btn').disabled = true;
   document.getElementById('bulk-import-btn').style.opacity = '0.5';
+  // Show WO-specific tip
+  const woTip = document.getElementById('wo-bulk-tip');
+  if(woTip) woTip.style.display = type==='wo' ? 'block' : 'none';
 
   // Render template header
   const cols = cfg.cols;
@@ -4379,12 +4456,12 @@ function parseBulkPreview(){
   const raw = document.getElementById('bulk-paste-area').value.trim();
   if(!raw){ document.getElementById('bulk-preview-wrap').style.display='none'; return; }
 
-  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
-  const cols   = cfg.cols;
-  _bulkParsed  = [];
+  let lines = raw.split('\n').map(l=>l.trimEnd()).filter(l=>l.trim());
+  const cols = cfg.cols;
+  _bulkParsed = [];
   let errCount = 0;
 
-  // Deteksi apakah baris pertama adalah header (tidak valid sebagai data)
+  // Deteksi apakah baris pertama adalah header
   const firstCells = lines[0].split('\t');
   const isHeader = firstCells.some(c =>
     cols.some(col => col.label.toLowerCase() === c.toLowerCase().trim() ||
@@ -4392,11 +4469,58 @@ function parseBulkPreview(){
   );
   const dataLines = isHeader ? lines.slice(1) : lines;
 
+  // ── Special handling untuk WO weekly job list ──────────────────────────
+  // Excel merged cells: kolom Mesin bisa kosong pada baris lanjutan (inherit dari atas)
+  // Kolom setelah MTTR bisa berisi: Total, nama teknisi, jam per-teknisi — dilewati
+  const isWO = _bulkType === 'wo';
+  let lastMachine = '';
+
   const previewRows = [];
   dataLines.forEach((line, idx) => {
     const cells = line.split('\t').map(c=>c.trim());
-    const obj   = {};
-    cols.forEach((col, i) => { obj[col.key] = cells[i] || ''; });
+
+    // Skip baris yang isinya semua kosong atau hanya angka/header tanggal
+    const nonEmpty = cells.filter(c=>c);
+    if(nonEmpty.length === 0) return;
+
+    // Skip baris header minggu (contoh: "Minggu, 11 Januari 2026")
+    if(isWO && cells[0] && /minggu|senin|selasa|rabu|kamis|jumat|sabtu/i.test(cells.join(' '))) return;
+    // Skip baris yang kolom ke-4 (Job List) kosong dan kolom 0 bukan angka
+    if(isWO && !cells[3] && !/^\d+$/.test(cells[0])) return;
+
+    const obj = {};
+    if(isWO){
+      // No (kolom 0) — bisa kosong jika merged
+      obj.no       = cells[0] || '';
+      // Mesin (kolom 1) — inherit dari atas jika kosong (merged cell)
+      obj.machine  = cells[1] || lastMachine;
+      if(cells[1]) lastMachine = cells[1];
+      // Section (kolom 2)
+      obj.section  = cells[2] || '';
+      // Job List (kolom 3)
+      obj.desc     = cells[3] || '';
+      // MTTR (kolom 4) — menit
+      obj.mttr     = cells[4] || '';
+      // Kolom 5+ bisa berisi "Total", nama teknisi, jam → cek apakah kolom 5 adalah PIC
+      // Jika kolom 5 adalah angka besar (total) → cari nama di kolom 6+
+      // Jika kolom 5 adalah nama → jadikan PIC
+      const col5 = cells[5] || '';
+      const col5num = parseFloat(col5);
+      if(col5 && isNaN(col5num)){
+        obj.pic = col5; // kolom 5 adalah nama teknisi
+      } else if(cells[6] && isNaN(parseFloat(cells[6]))){
+        obj.pic = cells[6];
+      } else {
+        obj.pic = '';
+      }
+      obj.priority = cells[7] || '';
+      obj.target   = cells[8] || '';
+      // Skip baris yang Job List kosong
+      if(!obj.desc || obj.desc === '—') return;
+    } else {
+      cols.forEach((col, i) => { obj[col.key] = cells[i] || ''; });
+    }
+
     const valid  = cfg.validate(obj);
     const parsed = valid ? cfg.parse(obj) : null;
     if(parsed) _bulkParsed.push(parsed);
@@ -4419,10 +4543,10 @@ function parseBulkPreview(){
   }
 
   document.getElementById('bulk-preview-wrap').style.display = 'block';
-  document.getElementById('bulk-row-count').textContent = dataLines.length + ' baris';
-  document.getElementById('bulk-error-count').textContent = errCount > 0 ? `⚠ ${errCount} baris error (dilewati)` : '';
+  document.getElementById('bulk-row-count').textContent = previewRows.length + ' baris';
+  document.getElementById('bulk-error-count').textContent = errCount > 0 ? `⚠ ${errCount} baris dilewati` : '';
   document.getElementById('bulk-footer-info').textContent =
-    `${_bulkParsed.length} valid · ${errCount} dilewati` + (isHeader?' · Baris header terdeteksi & dilewati':'');
+    `${_bulkParsed.length} valid · ${errCount} dilewati` + (isHeader?' · Baris header dilewati':'');
   document.getElementById('bulk-import-count').textContent = _bulkParsed.length;
 
   const btn = document.getElementById('bulk-import-btn');
@@ -4512,7 +4636,7 @@ function renderSysInfo(){
   if(inp) inp.value = gasUrl;
   el.innerHTML=`
     <div>Versi: <b>PM Command Center v2.0</b></div>
-    <div>Pengguna: <b>${state.user||'—'}</b> · Role: <b>${state.role||'—'}</b></div>
+    <div>Pengguna: <b>${state.user||'—'}</b></div>
     <div>Backend: <b>${gasUrl?'☁️ Google Drive (GAS)':'💾 localStorage (offline)'}</b></div>
     <div>GAS URL: <b style="font-size:9px;word-break:break-all;">${gasUrl?gasUrl.slice(0,60)+'...':'Belum diisi'}</b></div>
     <div>Total Mesin: <b>${state.machineList.length}</b></div>
@@ -4571,10 +4695,10 @@ async function initApp(){
   if(savedUser){
     try{
       const u=JSON.parse(savedUser);
-      state.user=u.name; state.role=u.role||'Admin';
+      state.user=u.name; state.role='Admin';
     }catch(e){ state.user=savedUser; state.role='Admin'; }
     document.getElementById('userOverlay').style.display='none';
-    document.getElementById('headerSub').textContent=`👤 ${state.user} · ${state.role} · ${state.machineList.length} Mesin`;
+    document.getElementById('headerSub').textContent=`👤 ${state.user} · ${state.machineList.length} Mesin`;
     populateTechSelects();
     initAll();
   } else {
