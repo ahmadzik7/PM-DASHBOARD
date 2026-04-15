@@ -72,7 +72,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
 .stats-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;}
 .stats-row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-.stat-card{background:#fff;border:1px solid var(--border);padding:14px 16px;position:relative;overflow:hidden;border-radius:8px;box-shadow:var(--shadow);}
+.stat-card{background:#fff;border:1px solid var(--border);padding:14px 16px;position:relative;overflow:hidden;border-radius:8px;box-shadow:var(--shadow);transition:transform 0.15s,box-shadow 0.15s;}
+.stat-card[style*="cursor:pointer"]:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:8px 8px 0 0;}
 .sc-blue::before{background:var(--blue);}
 .sc-amber::before{background:var(--amber);}
@@ -237,6 +238,8 @@ select option{background:#fff;}
 .cal-day{background:#fff;border:1px solid var(--border);border-radius:6px;min-height:72px;padding:6px;position:relative;cursor:pointer;transition:all 0.1s;box-shadow:var(--shadow);}
 .cal-day:hover{border-color:var(--blue);box-shadow:var(--shadow-md);}
 .cal-day.today{border-color:var(--blue);background:#eff6ff;}
+.cal-day.has-events{border-color:var(--border);box-shadow:var(--shadow-md);}
+.cal-day.has-events:hover{border-color:var(--blue);transform:translateY(-1px);}
 .cal-day.other-month .cal-dn{color:var(--text-muted);}
 .cal-dn{font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;color:var(--text);}
 .cal-today-dot{display:inline-block;background:var(--blue);width:5px;height:5px;border-radius:50%;margin-left:3px;vertical-align:middle;}
@@ -1464,6 +1467,21 @@ select option{background:#fff;}
   </div>
 </div>
 
+<!-- CALENDAR DAY DETAIL MODAL -->
+<div class="modal-overlay" id="cal-day-modal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <span class="modal-title" id="cal-day-modal-title">📅 Detail Jadwal</span>
+      <button class="modal-close" onclick="document.getElementById('cal-day-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="cal-day-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('cal-day-modal').classList.remove('open')">Tutup</button>
+      <button class="btn btn-blue" id="cal-day-go-btn" onclick="">📋 Lihat di Schedule</button>
+    </div>
+  </div>
+</div>
+
 <!-- BREAKDOWN MODAL -->
 <div class="modal-overlay" id="bd-modal">
   <div class="modal top-red" style="border-top-color:var(--red);">
@@ -2124,12 +2142,24 @@ function renderDashboard(){
   // KPI Row
   const kpi = document.getElementById('dash-kpi');
   if(kpi) kpi.innerHTML = `
-    <div class="stat-card sc-teal"><div class="stat-label">Total WO</div><div class="stat-value">${woTotal}</div><div class="stat-sub">Semua WO</div></div>
-    <div class="stat-card sc-blue"><div class="stat-label">WO Open</div><div class="stat-value">${woOpen}</div><div class="stat-sub">Belum diassign</div></div>
-    <div class="stat-card sc-amber"><div class="stat-label">WO In Progress</div><div class="stat-value">${woProgress+woAssigned}</div><div class="stat-sub">Sedang dikerjakan</div></div>
-    <div class="stat-card sc-green"><div class="stat-label">WO Done</div><div class="stat-value">${woDone}</div><div class="stat-sub">Selesai</div></div>
-    <div class="stat-card sc-red"><div class="stat-label">Backlog</div><div class="stat-value">${backlog}</div><div class="stat-sub">Overdue / belum selesai</div></div>
-    <div class="stat-card sc-purple"><div class="stat-label">Project Aktif</div><div class="stat-value">${(state.projectList||[]).filter(p=>p.status!=='done').length}</div><div class="stat-sub">Monitoring</div></div>`;
+    <div class="stat-card sc-teal" style="cursor:pointer;" onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='';filterWO();" title="Lihat semua WO">
+      <div class="stat-label">Total WO</div><div class="stat-value">${woTotal}</div><div class="stat-sub">Klik → semua WO</div>
+    </div>
+    <div class="stat-card sc-blue" style="cursor:pointer;" onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='open';filterWO();" title="Filter WO Open">
+      <div class="stat-label">WO Open</div><div class="stat-value">${woOpen}</div><div class="stat-sub">Klik → filter open</div>
+    </div>
+    <div class="stat-card sc-amber" style="cursor:pointer;" onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='progress';filterWO();" title="Filter WO In Progress">
+      <div class="stat-label">WO In Progress</div><div class="stat-value">${woProgress+woAssigned}</div><div class="stat-sub">Klik → filter progress</div>
+    </div>
+    <div class="stat-card sc-green" style="cursor:pointer;" onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='done';filterWO();" title="Filter WO Done">
+      <div class="stat-label">WO Done</div><div class="stat-value">${woDone}</div><div class="stat-sub">Klik → filter done</div>
+    </div>
+    <div class="stat-card sc-red" style="cursor:pointer;" onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='open';document.getElementById('wo-search').value='overdue';filterWO();" title="Lihat WO Backlog">
+      <div class="stat-label">Backlog</div><div class="stat-value">${backlog}</div><div class="stat-sub">Klik → filter backlog</div>
+    </div>
+    <div class="stat-card sc-purple" style="cursor:pointer;" onclick="goPage('progress',document.querySelector('.nav-item.nav-progress'));" title="Lihat Project">
+      <div class="stat-label">Project Aktif</div><div class="stat-value">${(state.projectList||[]).filter(p=>p.status!=='done').length}</div><div class="stat-sub">Klik → monitoring</div>
+    </div>`;
 
   // Trend Downtime
   const dtBars = document.getElementById('dash-downtime-bars');
@@ -2437,6 +2467,27 @@ function openLightboxWithPhotos(photos, idx){
 }
 let _lightboxTechIdx = 0;
 
+function buildPhotoGrid(photos, rid){
+  if(!photos||!photos.length){
+    return '<div style="padding:16px;background:var(--surface2);border-radius:8px;text-align:center;color:var(--text-muted);font-size:11px;margin-bottom:14px;">📷 Tidak ada foto dokumentasi</div>';
+  }
+  var label = '<div style="margin-bottom:14px;"><label style="font-family:var(--mono);font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;">Foto Dokumentasi (' + photos.length + ')</label>';
+  var grid  = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;">';
+  photos.forEach(function(p, i){
+    var src      = p.url||p.thumb||p.directUrl||p.dataUrl||'';
+    var driveUrl = p.url||p.directUrl||'';
+    var imgHtml  = src
+      ? '<img src="' + src + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:4px;"><span style=\'font-size:24px\'>📷</span><span style=\'font-size:9px;color:var(--text-muted)\'>Gagal muat</span></div>'
+      : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;"><span style=\'font-size:24px\'>📷</span><span style=\'font-size:9px;color:var(--text-muted)\'>Foto ' + (i+1) + '</span></div>';
+    var linkHtml = driveUrl
+      ? '<a href="' + driveUrl + '" target="_blank" onclick="event.stopPropagation()" style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.65);color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;text-decoration:none;line-height:1.5;">Drive ↗</a>'
+      : '';
+    grid += '<div onclick="openTechPhotoLightbox(\'' + rid + '\',' + i + ')" style="aspect-ratio:1;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);cursor:pointer;position:relative;background:var(--surface2);">' + imgHtml + linkHtml + '</div>';
+  });
+  grid += '</div></div>';
+  return label + grid;
+}
+
 function openTechReportDetail(id){
   _currentTechReportId = id;
   const r = (state.techReports||[]).find(x=>x.id===id);
@@ -2512,25 +2563,7 @@ function openTechReportDetail(id){
       </div>
     </div>`:''}
 
-    <!-- FOTO -->
-    ${photos.length?`
-    <div style="margin-bottom:14px;">
-      <label style="font-family:var(--mono);font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;">Foto Dokumentasi (${photos.length})</label>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;">
-        ${photos.map((p,i)=>`
-          <div onclick="openTechPhotoLightbox('${r.id}',${i})"
-            style="aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border);cursor:pointer;position:relative;">
-            ${p.url||p.thumb?`<img src="${p.url||p.thumb}" style="width:100%;height:100%;object-fit:cover;">`
-              :`<div style="width:100%;height:100%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:28px;">📷</div>`}
-            ${p.url?`<a href="${p.url}" target="_blank" onclick="event.stopPropagation()"
-              style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;
-              font-size:9px;padding:2px 6px;border-radius:4px;text-decoration:none;">Drive ↗</a>`:''}
-          </div>`).join('')}
-      </div>
-    </div>`:
-    `<div style="padding:16px;background:var(--surface2);border-radius:8px;text-align:center;color:var(--text-muted);font-size:11px;margin-bottom:14px;">
-      📷 Tidak ada foto dokumentasi
-    </div>`}
+    ${buildPhotoGrid(photos, r.id)}
 
     <div style="font-family:var(--mono);font-size:9px;color:var(--text-muted);">
       Dikirim: ${fmtDT(r.createdAt)||'—'}
@@ -2668,11 +2701,78 @@ function renderCalendar(){
     const isToday = dt.getTime()===today.getTime();
     const pmEvents = state.pmList.filter(p=>p.date===iso);
     const woEvents = state.woList.filter(w=>(w.target===iso||w.date===iso)&&w.status!=='done'&&w.status!=='closed');
+    const totalEvents = pmEvents.length + woEvents.length;
     let evHtml = pmEvents.map(p=>`<div class="cal-ev ${p.status==='done'?'ev-done':p.status==='overdue'?'ev-overdue':'ev-pm'}">${p.machine} ${p.type?.slice(0,8)||''}</div>`).join('');
     evHtml += woEvents.slice(0,2).map(w=>`<div class="cal-ev ev-wo">${w.no} ${w.machine}</div>`).join('');
-    cells += `<div class="cal-day${isToday?' today':''}"><div class="cal-dn">${d}${isToday?'<span class="cal-today-dot"></span>':''}</div>${evHtml}</div>`;
+    if(totalEvents>3) evHtml += `<div style="font-family:var(--mono);font-size:8px;color:var(--text-muted);margin-top:2px;">+${totalEvents-3} lainnya</div>`;
+    const hasEvents = totalEvents > 0;
+    cells += `<div class="cal-day${isToday?' today':''}${hasEvents?' has-events':''}" onclick="openCalDay('${iso}')" style="${hasEvents?'cursor:pointer;':'cursor:default;'}">
+      <div class="cal-dn">${d}${isToday?'<span class="cal-today-dot"></span>':''}${hasEvents?`<span style="float:right;background:var(--blue);color:#fff;font-size:7px;font-family:var(--mono);padding:1px 4px;border-radius:8px;font-weight:700;">${totalEvents}</span>`:''}
+      </div>${evHtml}</div>`;
   }
   body.innerHTML = cells;
+}
+
+function openCalDay(iso){
+  const pmEvents = state.pmList.filter(p=>p.date===iso);
+  const woEvents = state.woList.filter(w=>w.target===iso||w.date===iso);
+  const allEmpty = !pmEvents.length && !woEvents.length;
+  const dateLabel = fmtDate(iso);
+
+  document.getElementById('cal-day-modal-title').textContent = `📅 ${dateLabel}`;
+  // Go-to-schedule button sets the daily date filter
+  document.getElementById('cal-day-go-btn').onclick = ()=>{
+    document.getElementById('cal-day-modal').classList.remove('open');
+    goPage('schedule', document.querySelector('.nav-item.nav-sched'));
+    switchSchedTab('daily', document.querySelector('#page-schedule .tab-btn'));
+    const dateEl = document.getElementById('daily-date');
+    if(dateEl){ dateEl.value = iso; renderDailySchedule(); }
+  };
+
+  if(allEmpty){
+    document.getElementById('cal-day-modal-body').innerHTML = `
+      <div style="text-align:center;padding:32px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:8px;">📭</div>
+        <div>Tidak ada PM atau WO di tanggal ini</div>
+      </div>`;
+    document.getElementById('cal-day-modal').classList.add('open');
+    return;
+  }
+
+  let html = '';
+
+  if(pmEvents.length){
+    html += `<div style="font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">PM Schedule (${pmEvents.length})</div>`;
+    html += pmEvents.map(p=>`
+      <div style="background:var(--surface2);border-left:3px solid var(--cyan);border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div><span style="font-family:var(--mono);font-size:10px;color:var(--cyan);">${p.no}</span> <b>${p.machine}</b> — ${p.type||'—'}</div>
+          ${statusBadge(p.status)}
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);">PIC: ${p.pic||'—'} &nbsp;·&nbsp; Freq: ${p.freq||'—'} &nbsp;·&nbsp; Durasi: ${p.duration||'—'} jam</div>
+        ${p.desc?`<div style="font-size:11px;margin-top:4px;">${p.desc}</div>`:''}
+      </div>`).join('');
+  }
+
+  if(woEvents.length){
+    html += `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;margin-top:${pmEvents.length?'12px':'0'};">Work Order (${woEvents.length})</div>`;
+    html += woEvents.map(w=>`
+      <div style="background:var(--surface2);border-left:3px solid ${w.status==='done'?'var(--green)':w.priority==='C'?'var(--red)':w.priority==='H'?'var(--amber)':'var(--blue)'};border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;" onclick="document.getElementById('cal-day-modal').classList.remove('open');editWO('${w.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div>${prioBadge(w.priority)} <span style="font-family:var(--mono);font-size:10px;color:var(--amber);">${w.no}</span> <b>${w.machine}</b></div>
+          ${statusBadge(w.status)}
+        </div>
+        <div style="font-size:11px;margin-bottom:3px;">${w.desc||'—'}</div>
+        <div style="font-size:10px;color:var(--text-muted);">
+          ${w.section?`<span style="background:rgba(245,158,11,.12);color:var(--amber);padding:1px 6px;border-radius:4px;font-size:9px;margin-right:4px;">${w.section}</span>`:''}
+          PIC: ${w.pic||'—'} &nbsp;·&nbsp; ${w.mttr?'MTTR: '+w.mttr+'mnt':'Est: '+(w.estDuration||'—')+'h'}
+        </div>
+        <div style="font-size:9px;color:var(--text-muted);margin-top:2px;font-style:italic;">Tap untuk edit WO</div>
+      </div>`).join('');
+  }
+
+  document.getElementById('cal-day-modal-body').innerHTML = html;
+  document.getElementById('cal-day-modal').classList.add('open');
 }
 function changeMonth(dir){ state.calMonth+=dir; if(state.calMonth<0){state.calMonth=11;state.calYear--;} if(state.calMonth>11){state.calMonth=0;state.calYear++;} renderCalendar(); }
 function goToday(){ state.calYear=new Date().getFullYear(); state.calMonth=new Date().getMonth(); renderCalendar(); }
@@ -4177,7 +4277,7 @@ const BULK_CONFIG = {
       {key:'target',  label:'Target',    hint:'YYYY-MM-DD (opsional)', required:false},
     ],
     parse: (row) => ({
-      id: uid(), no: woNo(),
+      id: uid(), no: '__ASSIGN__',
       date:        new Date().toISOString().slice(0,10),
       type:        normalizeSectionType(row.section),
       machine:     row.machine     || '',
@@ -4194,6 +4294,12 @@ const BULK_CONFIG = {
     }),
     validate: (r) => r.machine && r.desc,
     onImport: (items) => {
+      // Assign WO numbers sequentially at import time (not parse time)
+      let nextNum = state.woList.length + 1;
+      items.forEach(item => {
+        item.no = 'WO-' + String(nextNum).padStart(4,'0');
+        nextNum++;
+      });
       state.woList.push(...items);
       save(); renderWOList(); renderDashboard(); populateNavBadges();
     },
@@ -4566,7 +4672,7 @@ function executeBulkImport(){
 function openTechPhotoLightbox(reportId, startIdx){
   const r = (state.techReports||[]).find(x=>x.id===reportId);
   if(!r) return;
-  _lightboxPhotos = (r.photos||[]).map(p=>p.url||p.thumb).filter(Boolean);
+  _lightboxPhotos = (r.photos||[]).map(p=>p.url||p.thumb||p.directUrl||p.dataUrl||'').filter(Boolean);
   if(!_lightboxPhotos.length) return;
   _lightboxTechIdx = startIdx;
   document.getElementById('lbImg').src = _lightboxPhotos[startIdx];
