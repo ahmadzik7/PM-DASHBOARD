@@ -102,6 +102,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .btn-blue{background:var(--blue);color:#fff;}.btn-blue:hover{background:#1d4ed8;}
 .btn-amber{background:var(--amber);color:#fff;}.btn-amber:hover{background:#b45309;}
 .btn-green{background:var(--green);color:#fff;}.btn-green:hover{background:#047857;}
+.btn-red{background:var(--red);color:#fff;}.btn-red:hover{background:#b91c1c;}
 .btn-ghost{background:#fff;color:var(--text-dim);border:1px solid var(--border);}.btn-ghost:hover{border-color:var(--blue);color:var(--blue);background:#eff6ff;}
 .btn-danger{background:#fef2f2;color:var(--red);border:1px solid #fecaca;}.btn-danger:hover{background:#fee2e2;}
 .btn-purple{background:var(--purple);color:#fff;}.btn-teal{background:var(--teal);color:#fff;}
@@ -437,11 +438,13 @@ select option{background:#fff;}
       <div id="dash-alerts"></div>
       <div class="stats-row-6" id="dash-kpi"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
-        <!-- Trend Downtime -->
+        <!-- Workload Teknisi -->
         <div class="card">
-          <div class="card-title"><span>📉 Trend Downtime (6 Bulan)</span></div>
-          <canvas id="dash-downtime-chart" height="120"></canvas>
-          <div id="dash-downtime-bars" style="margin-top:8px;"></div>
+          <div class="card-title">
+            <span>👷 Workload Teknisi</span>
+            <button class="btn btn-ghost btn-xs" onclick="goPage('manpower',document.querySelector('.nav-item.nav-manpower'));setTimeout(()=>switchMpTab('workload',document.querySelector('#page-manpower .tab-btn:nth-child(3)')),150);">Lihat Semua</button>
+          </div>
+          <div id="dash-workload-bars"></div>
         </div>
         <!-- Pareto Problem -->
         <div class="card">
@@ -1462,7 +1465,23 @@ select option{background:#fff;}
     <div class="modal-body" id="tr-modal-body"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="document.getElementById('tech-report-modal').classList.remove('open')">Tutup</button>
+      <button class="btn btn-red btn-xs" id="tr-delete-btn" onclick="deleteTechReport(_currentTechReportId)" style="margin-right:auto;">🗑 Hapus Laporan</button>
       <button class="btn btn-green" id="tr-approve-btn" onclick="approveTechReport()">✓ Verifikasi & Update WO</button>
+    </div>
+  </div>
+</div>
+
+<!-- TECH WORKLOAD DETAIL MODAL -->
+<div class="modal-overlay" id="tech-workload-modal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <span class="modal-title" id="twl-modal-title">👷 Detail Workload</span>
+      <button class="modal-close" onclick="document.getElementById('tech-workload-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="twl-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('tech-workload-modal').classList.remove('open')">Tutup</button>
+      <button class="btn btn-blue" onclick="document.getElementById('tech-workload-modal').classList.remove('open');goPage('workorder',document.querySelector('.nav-item.nav-wo'));">📋 Lihat WO List</button>
     </div>
   </div>
 </div>
@@ -2161,29 +2180,53 @@ function renderDashboard(){
       <div class="stat-label">Project Aktif</div><div class="stat-value">${(state.projectList||[]).filter(p=>p.status!=='done').length}</div><div class="stat-sub">Klik → monitoring</div>
     </div>`;
 
-  // Trend Downtime
-  const dtBars = document.getElementById('dash-downtime-bars');
-  if(dtBars){
-    const months = [];
-    for(let i=5;i>=0;i--){
-      const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
-      months.push({label: d.toLocaleDateString('id-ID',{month:'short',year:'2-digit'}), key: d.toISOString().slice(0,7)});
+  // Workload Teknisi (dashboard mini)
+  const OVERLOAD_HOURS = 6;
+  const wlBars = document.getElementById('dash-workload-bars');
+  if(wlBars){
+    if(!state.techList.length){
+      wlBars.innerHTML = '<div style="color:var(--text-muted);font-size:11px;padding:12px 0;text-align:center;">Belum ada teknisi terdaftar</div>';
+    } else {
+      const techData = state.techList.map(function(t){
+        const woActive = state.woList.filter(function(w){ return w.pic===t.name&&(w.status==='open'||w.status==='assigned'||w.status==='progress'); });
+        const estHours = woActive.reduce(function(a,w){ return a+(parseFloat(w.estDuration)||0); },0);
+        const overload = estHours >= OVERLOAD_HOURS;
+        const idle     = woActive.length === 0;
+        return {t:t, woActive:woActive, estHours:estHours, overload:overload, idle:idle};
+      });
+      const maxH = Math.max.apply(null, techData.map(function(d){ return d.estHours; }).concat([OVERLOAD_HOURS]));
+      var wlHtml = '';
+      techData.forEach(function(d){
+        var barColor = d.overload ? 'var(--red)' : d.idle ? 'var(--border)' : 'var(--green)';
+        var pct      = Math.min(Math.round(d.estHours/maxH*100),100);
+        var labelColor = d.overload ? 'var(--red)' : d.idle ? 'var(--text-muted)' : 'var(--green)';
+        var badge = d.overload
+          ? '<span style="background:var(--red);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px;">OVERLOAD</span>'
+          : d.idle
+          ? '<span style="background:var(--surface2);color:var(--text-muted);font-size:9px;padding:1px 6px;border-radius:8px;">IDLE</span>'
+          : '<span style="background:rgba(16,185,129,.15);color:var(--green);font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;">OK</span>';
+        wlHtml += '<div class="wl-row" data-tech="'+encodeURIComponent(d.t.name)+'" style="display:flex;align-items:center;gap:8px;margin-bottom:9px;cursor:pointer;padding:4px 6px;border-radius:6px;transition:background 0.15s;">'
+          + '<span style="font-size:11px;font-weight:600;min-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+d.t.name+'">'+d.t.name.slice(0,10)+'</span>'
+          + '<div style="flex:1;background:var(--border);height:10px;border-radius:5px;overflow:hidden;">'
+          +   '<div style="width:'+pct+'%;background:'+barColor+';height:10px;transition:width 0.5s;border-radius:5px;"></div>'
+          + '</div>'
+          + '<span style="font-family:var(--mono);font-size:9px;min-width:28px;text-align:right;color:'+labelColor+';">'+d.estHours.toFixed(1)+'h</span>'
+          + badge
+          + '<span style="font-size:14px;opacity:.5;">›</span>'
+          + '</div>';
+      });
+      wlHtml += '<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;font-family:var(--mono);font-size:9px;color:var(--text-muted);">Overload threshold: '+OVERLOAD_HOURS+' jam est. · Klik baris untuk detail</div>';
+      wlBars.innerHTML = wlHtml;
+      // Attach click events via data attribute (avoids quote escaping)
+      wlBars.querySelectorAll('.wl-row').forEach(function(el){
+        el.addEventListener('mouseover', function(){ this.style.background='var(--surface2)'; });
+        el.addEventListener('mouseout',  function(){ this.style.background='transparent'; });
+        el.addEventListener('click', function(){
+          openTechWorkloadDetail(decodeURIComponent(this.dataset.tech));
+        });
+      });
     }
-    const dtData = months.map(m=>({
-      label:m.label,
-      val: state.bdList.filter(b=>b.date&&b.date.slice(0,7)===m.key).reduce((a,b)=>a+(parseFloat(b.downtime)||0),0)
-    }));
-    const maxDT = Math.max(...dtData.map(d=>d.val), 1);
-    dtBars.innerHTML = dtData.map(d=>`
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-        <span style="font-family:var(--mono);font-size:9px;color:var(--text-muted);min-width:45px;">${d.label}</span>
-        <div style="flex:1;background:var(--border);height:10px;">
-          <div style="width:${Math.round(d.val/maxDT*100)}%;background:var(--red);height:10px;transition:width 0.5s;"></div>
-        </div>
-        <span style="font-family:var(--mono);font-size:9px;min-width:36px;text-align:right;color:var(--text-muted);">${d.val.toFixed(1)}h</span>
-      </div>`).join('');
   }
-
   // Pareto Problem
   const pareto = document.getElementById('dash-pareto');
   if(pareto){
@@ -2427,6 +2470,7 @@ function renderTechReports(){
           ${r.isAdhoc&&!linkedWO?`<span style="font-size:10px;color:var(--amber);">⚠ WO otomatis dibuat saat teknisi submit</span>`:''}
         </div>
         <button class="btn btn-ghost btn-xs" style="border-color:var(--teal);color:var(--teal);" onclick="event.stopPropagation();openTechReportDetail('${r.id}')">Lihat Detail →</button>
+        <button class="btn btn-ghost btn-xs" style="border-color:var(--red);color:var(--red);" onclick="event.stopPropagation();deleteTechReport('${r.id}')">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -2572,6 +2616,29 @@ function openTechReportDetail(id){
   document.getElementById('tech-report-modal').classList.add('open');
 }
 
+function deleteTechReport(id){
+  if(!id){ toast('ID laporan tidak ditemukan','err'); return; }
+  const r = (state.techReports||[]).find(x=>x.id===id);
+  if(!r){ toast('Laporan tidak ditemukan','err'); return; }
+
+  const title = (r.adhocTitle||r.work||'laporan ini').slice(0,40);
+  if(!confirm('Hapus laporan "'+title+'" dari '+r.tech+'?\n\nTindakan ini tidak dapat dibatalkan.')) return;
+
+  state.techReports = (state.techReports||[]).filter(x=>x.id!==id);
+  save();
+
+  // Close modal if open
+  document.getElementById('tech-report-modal').classList.remove('open');
+  _currentTechReportId = null;
+
+  // Re-render
+  renderTechReports();
+  renderDashboard();
+  populateNavBadges();
+
+  toast('🗑 Laporan dihapus');
+}
+
 function approveTechReport(){
   if(!_currentTechReportId) return;
   const r = (state.techReports||[]).find(x=>x.id===_currentTechReportId);
@@ -2588,6 +2655,105 @@ function approveTechReport(){
   save(); renderWOList(); renderDashboard();
   document.getElementById('tech-report-modal').classList.remove('open');
   toast(`✓ WO ${r.woRef} diupdate ke "${newStatus}"`);
+}
+
+function openTechWorkloadDetail(techName){
+  const OVERLOAD_HOURS = 6;
+  const tech = state.techList.find(t=>t.name===techName);
+  const woActive = state.woList.filter(w=>w.pic===techName&&(w.status==='open'||w.status==='assigned'||w.status==='progress'));
+  const woDone   = state.woList.filter(w=>w.pic===techName&&(w.status==='done'||w.status==='closed'));
+  const trAll    = (state.techReports||[]).filter(r=>r.tech===techName).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+  const estTotal = woActive.reduce((a,w)=>a+(parseFloat(w.estDuration)||0),0);
+  const overload = estTotal >= OVERLOAD_HOURS;
+
+  document.getElementById('twl-modal-title').textContent = '👷 Workload — ' + techName;
+
+  const STATUS_COLORS = {open:'var(--blue)',assigned:'var(--purple)',progress:'var(--amber)',done:'var(--green)',closed:'var(--text-muted)'};
+
+  let html = '';
+
+  // Summary bar
+  const pct = Math.min(Math.round(estTotal/OVERLOAD_HOURS*100),100);
+  const barColor = overload?'var(--red)':estTotal>0?'var(--green)':'var(--border)';
+  html += '<div style="background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:16px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+    +   '<div>'
+    +     '<div style="font-size:15px;font-weight:700;">'+techName+'</div>'
+    +     '<div style="font-size:10px;color:var(--text-muted);">'+(tech?(SHIFT_LABEL[tech.shift]||tech.shift)+' · '+(tech.skill||'—'):'—')+'</div>'
+    +   '</div>'
+    +   (overload?'<span style="background:var(--red);color:#fff;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">⚠ OVERLOAD</span>':'<span style="background:rgba(16,185,129,.15);color:var(--green);padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">✓ Normal</span>')
+    + '</div>'
+    + '<div style="background:var(--border);height:8px;border-radius:4px;overflow:hidden;margin-bottom:6px;">'
+    +   '<div style="width:'+pct+'%;background:'+barColor+';height:8px;border-radius:4px;transition:width 0.4s;"></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:20px;font-size:11px;">'
+    +   '<span><b style="font-family:var(--mono);font-size:14px;color:var(--amber);">'+woActive.length+'</b> WO Aktif</span>'
+    +   '<span><b style="font-family:var(--mono);font-size:14px;color:var(--green);">'+woDone.length+'</b> WO Done</span>'
+    +   '<span><b style="font-family:var(--mono);font-size:14px;color:'+(overload?'var(--red)':'var(--text)')+';">'+estTotal.toFixed(1)+'h</b> Est. Total</span>'
+    +   '<span><b style="font-family:var(--mono);font-size:9px;color:var(--text-muted);">Limit: '+OVERLOAD_HOURS+'h</b></span>'
+    + '</div>'
+    + '</div>';
+
+  // Active WOs
+  if(woActive.length){
+    html += '<div style="font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">WO Aktif ('+woActive.length+')</div>';
+    html += woActive.map(function(w){
+      var col = STATUS_COLORS[w.status]||'var(--text-muted)';
+      return '<div class="twl-wo-card" data-woid="'+w.id+'" style="background:var(--surface2);border-left:3px solid '+col+';border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+        +   '<div><span style="font-family:var(--mono);font-size:10px;color:var(--amber);">'+w.no+'</span> <b>'+w.machine+'</b></div>'
+        +   statusBadge(w.status)
+        + '</div>'
+        + '<div style="font-size:11px;margin-bottom:3px;">'+(w.desc||'—').slice(0,70)+'</div>'
+        + '<div style="font-size:10px;color:var(--text-muted);">'
+        +   (w.section?'<span style="background:rgba(245,158,11,.12);color:var(--amber);padding:1px 5px;border-radius:4px;font-size:9px;margin-right:4px;">'+w.section+'</span>':'')
+        +   (w.estDuration?'Est: '+w.estDuration+'h':'—')
+        +   (w.target?' · Target: '+fmtDate(w.target):'')
+        +   ' · <i>Tap untuk edit</i>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  } else {
+    html += '<div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center;color:var(--text-muted);font-size:11px;margin-bottom:12px;">Tidak ada WO aktif</div>';
+  }
+
+  // Recent tech reports
+  if(trAll.length){
+    html += '<div style="font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:1px;text-transform:uppercase;margin:12px 0 8px;">Laporan Terbaru ('+Math.min(trAll.length,5)+' dari '+trAll.length+')</div>';
+    html += trAll.slice(0,5).map(function(r){
+      var STATUS_TR_COLOR = {open:'var(--blue)',progress:'var(--amber)',done:'var(--green)',onhold:'var(--red)'};
+      var col = STATUS_TR_COLOR[r.status]||'var(--text-muted)';
+      return '<div class="twl-tr-card" data-trid="'+r.id+'" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s;">'
+        + '<div style="width:6px;height:6px;border-radius:50%;background:'+col+';flex-shrink:0;"></div>'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(r.adhocTitle||r.work||'—').slice(0,50)+'</div>'
+        +   '<div style="font-size:10px;color:var(--text-muted);">'+fmtDate(r.date)+' '+r.timeStart+'–'+r.timeEnd+(r.woRef?' · '+r.woRef:'')+(r.isAdhoc?' · ⚡ Ad-hoc':'')+'</div>'
+        + '</div>'
+        + '<span style="font-size:13px;opacity:.4;">›</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  document.getElementById('twl-modal-body').innerHTML = html;
+  // Attach click events via delegation
+  var twlBody = document.getElementById('twl-modal-body');
+  twlBody.querySelectorAll('.twl-wo-card').forEach(function(el){
+    el.addEventListener('mouseover', function(){ this.style.opacity='0.8'; });
+    el.addEventListener('mouseout',  function(){ this.style.opacity='1'; });
+    el.addEventListener('click', function(){
+      document.getElementById('tech-workload-modal').classList.remove('open');
+      editWO(this.dataset.woid);
+    });
+  });
+  twlBody.querySelectorAll('.twl-tr-card').forEach(function(el){
+    el.addEventListener('mouseover', function(){ this.style.background='var(--surface2)'; });
+    el.addEventListener('mouseout',  function(){ this.style.background='transparent'; });
+    el.addEventListener('click', function(){
+      document.getElementById('tech-workload-modal').classList.remove('open');
+      openTechReportDetail(this.dataset.trid);
+    });
+  });
+  document.getElementById('tech-workload-modal').classList.add('open');
 }
 
 function openWOModal(id=null){
@@ -2988,7 +3154,7 @@ function renderWorkload(){
   el.innerHTML = state.techList.map(t=>{
     const woActive = state.woList.filter(w=>w.pic===t.name&&(w.status==='open'||w.status==='assigned'||w.status==='progress'));
     const estTotal = woActive.reduce((a,w)=>a+(parseFloat(w.estDuration)||0),0);
-    const wl = woActive.length>=3?'overload':woActive.length>=1?'normal':'idle';
+    const wl = estTotal>=6?'overload':woActive.length>=1?'normal':'idle';
     const wlColor = wl==='overload'?'var(--red)':wl==='normal'?'var(--green)':'var(--text-muted)';
     return `<div class="stat-card sc-${wl==='overload'?'red':wl==='normal'?'green':'cyan'}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
