@@ -1049,23 +1049,30 @@ select option{background:#fff;}
             <option value="L">🟢 Low</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>MTTR (menit)</label>
-          <input type="number" id="wo-mttr" placeholder="30" min="0" step="5"
-            oninput="document.getElementById('wo-est-duration').value=(this.value?(parseFloat(this.value)/60).toFixed(1):'')">
-        </div>
+
         <div class="form-group full">
           <label>Deskripsi Problem / Pekerjaan</label>
           <textarea id="wo-desc" rows="3" placeholder="Uraian masalah atau pekerjaan yang harus dilakukan..."></textarea>
         </div>
+        <div class="form-group full">
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Teknisi & Durasi Keterlibatan</span>
+            <button type="button" class="btn btn-ghost btn-xs" onclick="addWOAssignee()" style="font-size:10px;">+ Tambah Teknisi</button>
+          </label>
+          <div id="wo-assignees-list" style="margin-top:6px;display:flex;flex-direction:column;gap:6px;"></div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">💡 Satu WO bisa dikerjakan beberapa teknisi dengan durasi berbeda. Teknisi pertama = PIC utama.</div>
+        </div>
         <div class="form-group">
-          <label>Assigned To (Teknisi)</label>
-          <select id="wo-pic"></select>
+          <label>Total MTTR Aktual (menit)</label>
+          <input type="number" id="wo-mttr" placeholder="30" min="0" step="5"
+            oninput="document.getElementById('wo-est-duration').value=(this.value?(parseFloat(this.value)/60).toFixed(1):'')">
         </div>
         <div class="form-group">
           <label>Estimasi Durasi (jam) — auto dari MTTR</label>
           <input type="number" id="wo-est-duration" placeholder="0.5" min="0.5" step="0.5">
         </div>
+        <!-- Hidden: pic (first assignee) for backwards compat -->
+        <input type="hidden" id="wo-pic-hidden">
         <div class="form-group">
           <label>Target Selesai</label>
           <input type="date" id="wo-target">
@@ -1364,6 +1371,30 @@ select option{background:#fff;}
 </div>
 
 <!-- MACHINE MODAL -->
+<!-- MACHINE QUICK STATUS MODAL -->
+<div class="modal-overlay" id="machine-status-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title" id="msq-title">Status Mesin</span>
+      <button class="modal-close" onclick="document.getElementById('machine-status-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="msq-current" style="background:var(--surface2);border-radius:8px;padding:12px 14px;margin-bottom:16px;"></div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Pilih Status Minggu Ini</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;" id="msq-btns"></div>
+      <div style="margin-top:14px;">
+        <label style="font-family:var(--mono);font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;">Catatan (opsional)</label>
+        <textarea id="msq-note" rows="2" placeholder="cth: Overhaul motor utama, estimasi 3 hari..." style="margin-top:6px;width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:6px;resize:none;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('machine-status-modal').classList.remove('open')">Batal</button>
+      <button class="btn btn-blue" onclick="editMachine(document.getElementById('machine-status-modal').dataset.mid)">⚙ Edit Lengkap</button>
+      <button class="btn btn-green" onclick="saveMachineStatusQuick()">✓ Simpan Status</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="machine-modal">
   <div class="modal top-rose">
     <div class="modal-header">
@@ -1403,6 +1434,9 @@ select option{background:#fff;}
         <div class="form-group">
           <label>Status Operasi</label>
           <select id="mach-status">
+            <option value="running">▶ Running (Berjalan Normal)</option>
+            <option value="idle">⏸ Idle (Tidak Produksi)</option>
+            <option value="overhaul">🔧 Overhaul (Perbaikan Besar)</option>
             <option value="active">Aktif / Produksi</option>
             <option value="standby">Standby</option>
             <option value="maintenance">Dalam Maintenance</option>
@@ -1770,8 +1804,18 @@ select option{background:#fff;}
 const FREQ_LABEL = {daily:'Harian',weekly:'Mingguan',monthly:'Bulanan',quarterly:'Triwulan',yearly:'Tahunan'};
 const STATUS_LABEL = {open:'Open',assigned:'Assigned',progress:'In Progress',done:'Done',closed:'Closed',overdue:'Overdue',cancel:'Cancel',resolved:'Resolved',monitoring:'Monitoring'};
 const TYPE_LABEL = {corrective:'Corrective',preventive:'Preventive',emergency:'Emergency',improvement:'Improvement'};
-const MACH_STATUS_LABEL = {active:'Aktif',standby:'Standby',maintenance:'Maintenance',breakdown:'Breakdown',retired:'Pensiun'};
-const MACH_STATUS_COLOR = {active:'var(--green)',standby:'var(--blue)',maintenance:'var(--amber)',breakdown:'var(--red)',retired:'var(--text-muted)'};
+const MACH_STATUS_LABEL = {
+  running:'Running',idle:'Idle',overhaul:'Overhaul',
+  active:'Aktif',standby:'Standby',maintenance:'Maintenance',breakdown:'Breakdown',retired:'Pensiun'
+};
+const MACH_STATUS_COLOR = {
+  running:'var(--green)',idle:'var(--blue)',overhaul:'var(--amber)',
+  active:'var(--green)',standby:'var(--blue)',maintenance:'var(--amber)',breakdown:'var(--red)',retired:'var(--text-muted)'
+};
+const MACH_STATUS_ICON = {
+  running:'▶',idle:'⏸',overhaul:'🔧',
+  active:'▶',standby:'⏸',maintenance:'🔧',breakdown:'🔴',retired:'⬛'
+};
 const SHIFT_LABEL = {'1':'Shift 1','2':'Shift 2','3':'Shift 3',all:'All Shift'};
 const PRIO_LABEL = {C:'Critical',H:'High',M:'Medium',L:'Low'};
 
@@ -2188,8 +2232,19 @@ function renderDashboard(){
       wlBars.innerHTML = '<div style="color:var(--text-muted);font-size:11px;padding:12px 0;text-align:center;">Belum ada teknisi terdaftar</div>';
     } else {
       const techData = state.techList.map(function(t){
-        const woActive = state.woList.filter(function(w){ return w.pic===t.name&&(w.status==='open'||w.status==='assigned'||w.status==='progress'); });
-        const estHours = woActive.reduce(function(a,w){ return a+(parseFloat(w.estDuration)||0); },0);
+        const woActive = state.woList.filter(function(w){
+          var isAssigned = w.pic===t.name;
+          if(!isAssigned && w.assignees) isAssigned = w.assignees.some(function(a){ return a.tech===t.name; });
+          return isAssigned&&(w.status==='open'||w.status==='assigned'||w.status==='progress');
+        });
+        const estHours = woActive.reduce(function(a,w){
+          // For multi-assignee WO, use this tech's specific duration
+          if(w.assignees && w.assignees.length){
+            var asgn = w.assignees.find(function(a){ return a.tech===t.name; });
+            if(asgn) return a+(asgn.duration?(asgn.duration/60):0);
+          }
+          return a+(parseFloat(w.estDuration)||0);
+        },0);
         const overload = estHours >= OVERLOAD_HOURS;
         const idle     = woActive.length === 0;
         return {t:t, woActive:woActive, estHours:estHours, overload:overload, idle:idle};
@@ -2268,15 +2323,20 @@ function renderDashboard(){
       const col = MACH_STATUS_COLOR[m.status]||'var(--green)';
       const woActive = state.woList.filter(w=>w.machine===m.id&&(w.status==='open'||w.status==='progress'||w.status==='assigned')).length;
       const lastBD = state.bdList.filter(b=>b.machine===m.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
-      return `<div class="machine-card">
-        <div class="mc-status-dot" style="background:${col};box-shadow:0 0 6px ${col};position:absolute;top:10px;right:12px;width:8px;height:8px;border-radius:50%;"></div>
+      return `<div class="machine-card" onclick="openMachineStatusQuick('${m.id}')" style="cursor:pointer;" title="Klik untuk ubah status">
+        <div style="position:absolute;top:10px;right:12px;display:flex;align-items:center;gap:5px;">
+          <span style="font-size:9px;font-weight:700;color:${col};font-family:var(--mono);">${MACH_STATUS_ICON[m.status]||'●'} ${MACH_STATUS_LABEL[m.status]||m.status}</span>
+          <div style="width:8px;height:8px;border-radius:50%;background:${col};box-shadow:0 0 6px ${col};"></div>
+        </div>
         <div class="mc-id">${m.id}</div>
         <div class="mc-name">${m.name}</div>
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px;">${m.type||'—'}${m.location?' · '+m.location:''}</div>
         <div class="mc-stats">
           <div class="mc-stat">WO Aktif<span>${woActive}</span></div>
           <div class="mc-stat">Last BD<span>${lastBD?fmtDate(lastBD.date?.slice(0,10)):'—'}</span></div>
-          <div class="mc-stat">Status<span style="color:${col};font-size:9px;">${MACH_STATUS_LABEL[m.status]||m.status}</span></div>
+          <div class="mc-stat" style="cursor:pointer;" onclick="event.stopPropagation();openMachineStatusQuick('${m.id}')">
+            <span style="font-size:9px;color:var(--blue);">✏ Edit Status</span>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -2362,7 +2422,10 @@ function renderWOList(){
       <td><span class="badge ${w.type==='emergency'?'b-overdue':w.type==='improvement'?'b-assigned':'b-open'}">${TYPE_LABEL[w.type]||w.type}</span></td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${w.desc}">${w.desc||'—'}</td>
       <td>${prioBadge(w.priority)}</td>
-      <td>${w.pic||'—'}</td>
+      <td>${(w.assignees&&w.assignees.length>1)
+        ? w.assignees.map(a=>'<span style="display:inline-block;background:rgba(59,130,246,.1);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin:1px;">'+a.tech+(a.duration?'<span style="color:var(--text-muted);">·'+a.duration+'m</span>':'')+'</span>').join(' ')
+        : (w.pic||'<span style="color:var(--text-muted)">Belum assigned</span>')
+      }</td>
       <td style="font-family:var(--mono);font-size:10px;text-align:center;">
         ${w.mttr ? `<b>${w.mttr}</b><span style="color:var(--text-muted);font-size:8px;"> mnt</span>` : w.estDuration ? w.estDuration+'h' : '—'}
       </td>
@@ -2660,10 +2723,22 @@ function approveTechReport(){
 function openTechWorkloadDetail(techName){
   const OVERLOAD_HOURS = 6;
   const tech = state.techList.find(t=>t.name===techName);
-  const woActive = state.woList.filter(w=>w.pic===techName&&(w.status==='open'||w.status==='assigned'||w.status==='progress'));
-  const woDone   = state.woList.filter(w=>w.pic===techName&&(w.status==='done'||w.status==='closed'));
+  const woActive = state.woList.filter(w=>{
+    var assigned = w.pic===techName || (w.assignees&&w.assignees.some(a=>a.tech===techName));
+    return assigned&&(w.status==='open'||w.status==='assigned'||w.status==='progress');
+  });
+  const woDone = state.woList.filter(w=>{
+    var assigned = w.pic===techName || (w.assignees&&w.assignees.some(a=>a.tech===techName));
+    return assigned&&(w.status==='done'||w.status==='closed');
+  });
   const trAll    = (state.techReports||[]).filter(r=>r.tech===techName).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
-  const estTotal = woActive.reduce((a,w)=>a+(parseFloat(w.estDuration)||0),0);
+  const estTotal = woActive.reduce((a,w)=>{
+    if(w.assignees&&w.assignees.length){
+      const asgn=w.assignees.find(x=>x.tech===techName);
+      if(asgn) return a+(asgn.duration?(asgn.duration/60):0);
+    }
+    return a+(parseFloat(w.estDuration)||0);
+  },0);
   const overload = estTotal >= OVERLOAD_HOURS;
 
   document.getElementById('twl-modal-title').textContent = '👷 Workload — ' + techName;
@@ -2707,9 +2782,8 @@ function openTechWorkloadDetail(techName){
         + '<div style="font-size:11px;margin-bottom:3px;">'+(w.desc||'—').slice(0,70)+'</div>'
         + '<div style="font-size:10px;color:var(--text-muted);">'
         +   (w.section?'<span style="background:rgba(245,158,11,.12);color:var(--amber);padding:1px 5px;border-radius:4px;font-size:9px;margin-right:4px;">'+w.section+'</span>':'')
-        +   (w.estDuration?'Est: '+w.estDuration+'h':'—')
-        +   (w.target?' · Target: '+fmtDate(w.target):'')
-        +   ' · <i>Tap untuk edit</i>'
+        +   (function(){ if(w.assignees&&w.assignees.length>1){ var me=w.assignees.find(function(a){return a.tech===techName;}); var meMin=me?(me.duration||0):0; var tot=w.assignees.reduce(function(s,a){return Math.max(s,a.duration||0);},0); return 'Durasimu: <b style="color:var(--blue);">'+meMin+'m</b> / MTTR: '+tot+'m &nbsp;·&nbsp; <span style="color:var(--purple);">👥 '+w.assignees.length+' teknisi</span>'; } return w.estDuration?'Est: '+w.estDuration+'h':'—'; })()
+        +   (w.target?' &nbsp;·&nbsp; Target: '+fmtDate(w.target):'')
         + '</div>'
         + '</div>';
     }).join('');
@@ -2756,6 +2830,89 @@ function openTechWorkloadDetail(techName){
   document.getElementById('tech-workload-modal').classList.add('open');
 }
 
+// ── WO Multi-Assignee helpers ──────────────────────────────────────────
+function buildTechOptions(selected){
+  var opts = '<option value="">— Pilih Teknisi —</option>';
+  state.techList.forEach(function(t){
+    opts += '<option value="'+t.name+'"'+(t.name===selected?' selected':'')+'>'+t.name+'</option>';
+  });
+  opts += '<option value="__manual"'+(selected==='__manual'?' selected':'')+'>Lainnya (ketik)...</option>';
+  return opts;
+}
+
+function renderWOAssignees(assignees){
+  var el = document.getElementById('wo-assignees-list');
+  if(!el) return;
+  if(!assignees||!assignees.length) assignees = [{tech:'',duration:'',note:'',isPic:true}];
+  el.innerHTML = '';
+  assignees.forEach(function(a, i){
+    var techOpts = '<option value="">— Pilih Teknisi —</option>';
+    state.techList.forEach(function(t){
+      techOpts += '<option value="'+t.name+'"'+(t.name===a.tech?' selected':'')+'>'+ t.name +'</option>';
+    });
+    techOpts += '<option value="__manual"'+(a.tech==='__manual'?' selected':'')+'>Lainnya (ketik)...</option>';
+
+    var row = document.createElement('div');
+    row.dataset.idx = i;
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 80px 1fr auto;gap:6px;align-items:start;background:var(--surface2);padding:8px;border-radius:8px;border-left:3px solid '+(a.isPic?'var(--blue)':'var(--border)')+';';
+    var picLabel = i===0 ? '<div style="font-family:var(--mono);font-size:8px;color:var(--blue);letter-spacing:1px;margin-bottom:3px;">PIC UTAMA</div>' : '';
+    var manualInput = a.tech==='__manual'
+      ? '<input type="text" class="wo-asgn-manual" placeholder="Nama teknisi..." value="'+(a.techManual||'')+ '" style="margin-top:4px;width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:5px;">' : '';
+    row.innerHTML =
+      '<div>'+picLabel
+      + '<select class="wo-asgn-tech" style="width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:5px;">'+techOpts+'</select>'
+      + manualInput
+      + '</div>'
+      + '<div>'+(i===0?'<div style="font-family:var(--mono);font-size:8px;color:var(--text-muted);letter-spacing:1px;margin-bottom:3px;">DURASI</div>':'<div style="height:15px;"></div>')
+      + '<input type="number" class="wo-asgn-dur" min="1" step="1" placeholder="mnt" value="'+(a.duration||'')+ '" style="width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:5px;text-align:center;">'
+      + '<div style="font-size:8px;color:var(--text-muted);text-align:center;margin-top:2px;">menit</div>'
+      + '</div>'
+      + '<div>'+(i===0?'<div style="font-family:var(--mono);font-size:8px;color:var(--text-muted);letter-spacing:1px;margin-bottom:3px;">KETERANGAN</div>':'<div style="height:15px;"></div>')
+      + '<input type="text" class="wo-asgn-note" placeholder="cth: Bantu awal, Pengencangan..." value="'+(a.note||'')+ '" style="width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:5px;">'
+      + '</div>'
+      + '<button type="button" class="wo-asgn-del" style="margin-top:'+(i===0?'15':'0')+'px;background:transparent;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px;" title="Hapus">×</button>';
+    el.appendChild(row);
+  });
+  // Event delegation on container
+  el.querySelectorAll('[data-idx]').forEach(function(row){
+    var idx = parseInt(row.dataset.idx);
+    var techSel = row.querySelector('.wo-asgn-tech');
+    var durInp  = row.querySelector('.wo-asgn-dur');
+    var noteInp = row.querySelector('.wo-asgn-note');
+    var delBtn  = row.querySelector('.wo-asgn-del');
+    var manInp  = row.querySelector('.wo-asgn-manual');
+    if(techSel) techSel.addEventListener('change', function(){ _woAssignees[idx].tech=this.value; renderWOAssignees(_woAssignees); });
+    if(durInp)  durInp.addEventListener('change',  function(){ _woAssignees[idx].duration=this.value; });
+    if(noteInp) noteInp.addEventListener('change', function(){ _woAssignees[idx].note=this.value; });
+    if(manInp)  manInp.addEventListener('change',  function(){ _woAssignees[idx].techManual=this.value; });
+    if(delBtn)  delBtn.addEventListener('click',   function(){ removeWOAssignee(idx); });
+  });
+}
+
+function addWOAssignee(){
+  _woAssignees.push({tech:'', duration:'', note:'', isPic:(_woAssignees.length===0)});
+  renderWOAssignees(_woAssignees);
+}
+
+function removeWOAssignee(idx){
+  if(_woAssignees.length <= 1){ toast('Minimal 1 teknisi','err'); return; }
+  _woAssignees.splice(idx,1);
+  _woAssignees[0].isPic = true; // first is always PIC
+  renderWOAssignees(_woAssignees);
+}
+
+function onWOAssigneeChange(idx, field, val){
+  if(!_woAssignees[idx]) return;
+  _woAssignees[idx][field] = val;
+  if(field==='tech') renderWOAssignees(_woAssignees); // re-render if manual input toggle
+}
+
+function getWOPic(){
+  if(!_woAssignees.length) return '';
+  var first = _woAssignees[0];
+  return first.tech==='__manual' ? (first.techManual||'') : (first.tech||'');
+}
+
 function openWOModal(id=null){
   state.editWOId = id;
   document.getElementById('wo-modal-title').textContent = id ? 'EDIT WORK ORDER' : 'BUAT WORK ORDER';
@@ -2768,10 +2925,13 @@ function openWOModal(id=null){
       document.getElementById('wo-est-duration').value = w.estDuration||'';
       document.getElementById('wo-section').value = w.section||'';
       document.getElementById('wo-mttr').value = w.mttr||'';
-      const pp = document.getElementById('wo-pic');
-      if(pp){ const hasOpt = [...pp.options].some(o=>o.value===w.pic); if(hasOpt) pp.value=w.pic; else { pp.value='__manual'; } }
       const prog = document.getElementById('wo-progress');
       if(prog){ prog.value=w.progress||0; document.getElementById('wo-progress-val').textContent=(w.progress||0)+'%'; }
+      // Load assignees
+      _woAssignees = (w.assignees && w.assignees.length)
+        ? JSON.parse(JSON.stringify(w.assignees))
+        : [{tech:w.pic||'', duration:w.mttr||'', note:'', isPic:true}];
+      renderWOAssignees(_woAssignees);
     }
   } else {
     clearFields(['wo-machine','wo-type','wo-desc','wo-priority','wo-target','wo-status','wo-downtime','wo-action','wo-rootcause','wo-spare-used','wo-tools-used']);
@@ -2784,6 +2944,9 @@ function openWOModal(id=null){
     document.getElementById('wo-est-duration').value='';
     document.getElementById('wo-section').value='';
     document.getElementById('wo-mttr').value='';
+    // Default: 1 empty assignee row
+    _woAssignees = [{tech:'', duration:'', note:'', isPic:true}];
+    renderWOAssignees(_woAssignees);
   }
   document.getElementById('wo-modal').classList.add('open');
 }
@@ -2792,20 +2955,41 @@ function closeWOModal(){ document.getElementById('wo-modal').classList.remove('o
 function saveWO(){
   const machine=gv('wo-machine'), desc=gv('wo-desc').trim();
   if(!machine||!desc){ toast('Mesin dan deskripsi wajib diisi','err'); return; }
-  let pic = gv('wo-pic');
-  if(pic==='__manual') pic = '';
-  const mttrVal = document.getElementById('wo-mttr').value;
+
+  // Build assignees from _woAssignees state
+  const assignees = _woAssignees
+    .filter(function(a){ return (a.tech && a.tech!=='__manual')||a.techManual; })
+    .map(function(a, i){
+      return {
+        tech:     a.tech==='__manual' ? (a.techManual||'') : (a.tech||''),
+        duration: parseFloat(a.duration)||0,
+        note:     a.note||'',
+        isPic:    i===0
+      };
+    });
+
+  // PIC = first valid assignee
+  const pic = assignees.length ? assignees[0].tech : '';
+
+  // Total est duration = max assignee duration (longest person = total WO duration)
+  const maxDurationMin = assignees.reduce(function(max, a){ return Math.max(max, a.duration||0); }, 0);
+  const mttrVal = document.getElementById('wo-mttr').value || (maxDurationMin||'');
+  const estDurVal = mttrVal ? (parseFloat(mttrVal)/60).toFixed(1) : document.getElementById('wo-est-duration').value;
+
   const data = {
     date: gv('wo-date')||new Date().toISOString().slice(0,10),
     machine, type:gv('wo-type'), desc, priority:gv('wo-priority'),
     section: document.getElementById('wo-section').value.trim(),
-    mttr: mttrVal,
-    pic, estDuration: mttrVal ? (parseFloat(mttrVal)/60).toFixed(1) : document.getElementById('wo-est-duration').value,
+    mttr:  mttrVal,
+    pic,
+    assignees,
+    estDuration: estDurVal,
     target:gv('wo-target'), status:gv('wo-status'), downtime:gv('wo-downtime'),
     action:gv('wo-action'), rootcause:gv('wo-rootcause'),
     spareUsed:gv('wo-spare-used'), toolsUsed:gv('wo-tools-used'),
     progress: document.getElementById('wo-progress').value || 0
   };
+
   if(state.editWOId){
     const i=state.woList.findIndex(x=>x.id===state.editWOId);
     if(i>-1) state.woList[i]={...state.woList[i],...data};
@@ -2813,7 +2997,7 @@ function saveWO(){
   } else {
     state.woList.push({id:uid(),no:woNo(),...data,createdAt:new Date().toISOString()});
     toast('Work Order dibuat ✓');
-    if(data.pic) addNotification('assign','🔔',`WO Baru Diassign`,`${data.machine} → ${data.pic}: ${data.desc?.slice(0,50)}`);
+    if(pic) addNotification('assign','🔔','WO Baru Diassign',machine+' → '+pic+': '+(desc?.slice(0,50)||''));
   }
   save(); closeWOModal(); renderWOList(); renderDashboard(); populateNavBadges();
 }
@@ -3152,8 +3336,17 @@ function renderWorkload(){
     return;
   }
   el.innerHTML = state.techList.map(t=>{
-    const woActive = state.woList.filter(w=>w.pic===t.name&&(w.status==='open'||w.status==='assigned'||w.status==='progress'));
-    const estTotal = woActive.reduce((a,w)=>a+(parseFloat(w.estDuration)||0),0);
+    const woActive = state.woList.filter(w=>{
+      var assigned = w.pic===t.name || (w.assignees&&w.assignees.some(a=>a.tech===t.name));
+      return assigned&&(w.status==='open'||w.status==='assigned'||w.status==='progress');
+    });
+    const estTotal = woActive.reduce((a,w)=>{
+      if(w.assignees&&w.assignees.length){
+        const asgn=w.assignees.find(a=>a.tech===t.name);
+        if(asgn) return a+(asgn.duration?(asgn.duration/60):0);
+      }
+      return a+(parseFloat(w.estDuration)||0);
+    },0);
     const wl = estTotal>=6?'overload':woActive.length>=1?'normal':'idle';
     const wlColor = wl==='overload'?'var(--red)':wl==='normal'?'var(--green)':'var(--text-muted)';
     return `<div class="stat-card sc-${wl==='overload'?'red':wl==='normal'?'green':'cyan'}">
@@ -3863,6 +4056,107 @@ function renderMachineList(){
       </td>
     </tr>`;
   }).join('');
+}
+
+function openMachineStatusQuick(machineId){
+  const m = state.machineList.find(x=>x.id===machineId);
+  if(!m) return;
+  const modal = document.getElementById('machine-status-modal');
+  modal.dataset.mid = machineId;
+  document.getElementById('msq-title').textContent = m.id + ' — ' + (m.name||'Mesin');
+
+  // Current status display
+  const col = MACH_STATUS_COLOR[m.status]||'var(--green)';
+  document.getElementById('msq-current').innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;">'
+    + '<div style="width:12px;height:12px;border-radius:50%;background:'+col+';box-shadow:0 0 8px '+col+';flex-shrink:0;"></div>'
+    + '<div>'
+    +   '<div style="font-size:12px;font-weight:700;">Status saat ini: <span style="color:'+col+';">'+(MACH_STATUS_LABEL[m.status]||m.status)+'</span></div>'
+    +   (m.statusNote?'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+m.statusNote+'</div>':'')
+    + '</div>'
+    + '</div>';
+
+  // Status buttons
+  const statuses = [
+    {key:'running', label:'Running',  icon:'▶', color:'var(--green)',  bg:'rgba(16,185,129,.12)', desc:'Berjalan normal'},
+    {key:'idle',    label:'Idle',     icon:'⏸', color:'var(--blue)',   bg:'rgba(59,130,246,.12)', desc:'Tidak produksi'},
+    {key:'overhaul',label:'Overhaul', icon:'🔧', color:'var(--amber)',  bg:'rgba(245,158,11,.12)', desc:'Perbaikan besar'},
+  ];
+  var btnHtml = statuses.map(function(s){
+    var isActive = m.status===s.key;
+    return '<button class="msq-status-btn" data-key="'+s.key+'" '
+      + 'style="padding:12px 8px;border-radius:10px;border:2px solid '+(isActive?s.color:'var(--border)')+';'
+      + 'background:'+(isActive?s.bg:'var(--surface2)')+';cursor:pointer;transition:all 0.15s;text-align:center;width:100%;">'
+      + '<div style="font-size:20px;margin-bottom:4px;">'+s.icon+'</div>'
+      + '<div style="font-size:11px;font-weight:700;color:'+(isActive?s.color:'var(--text)')+'">'+s.label+'</div>'
+      + '<div style="font-size:9px;color:var(--text-muted);">'+s.desc+'</div>'
+      + '</button>';
+  }).join('');
+  document.getElementById('msq-btns').innerHTML = btnHtml;
+  // Attach click events
+  document.getElementById('msq-btns').querySelectorAll('.msq-status-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ selectMachineStatusQuick(this.dataset.key); });
+  });
+
+  document.getElementById('msq-note').value = m.statusNote||'';
+  modal.classList.add('open');
+}
+
+let _selectedMachStatus = null;
+function selectMachineStatusQuick(key){
+  _selectedMachStatus = key;
+  const statuses = [
+    {key:'running', color:'var(--green)', bg:'rgba(16,185,129,.12)'},
+    {key:'idle',    color:'var(--blue)',  bg:'rgba(59,130,246,.12)'},
+    {key:'overhaul',color:'var(--amber)', bg:'rgba(245,158,11,.12)'},
+  ];
+  statuses.forEach(function(s){
+    var btn = document.getElementById('msqbtn-'+s.key);
+    if(!btn) return;
+    if(s.key===key){
+      btn.style.borderColor = s.color;
+      btn.style.background  = s.bg;
+      btn.querySelector('div:nth-child(2)').style.color = s.color;
+    } else {
+      btn.style.borderColor = 'var(--border)';
+      btn.style.background  = 'var(--surface2)';
+      btn.querySelector('div:nth-child(2)').style.color = 'var(--text)';
+    }
+  });
+}
+
+function saveMachineStatusQuick(){
+  const modal = document.getElementById('machine-status-modal');
+  const machineId = modal.dataset.mid;
+  if(!machineId){ toast('ID mesin tidak ditemukan','err'); return; }
+  if(!_selectedMachStatus){
+    // No new selection, just update note
+    const m = state.machineList.find(x=>x.id===machineId);
+    if(m) m.statusNote = document.getElementById('msq-note').value.trim();
+    save(); renderDashboard();
+    modal.classList.remove('open');
+    toast('Catatan disimpan');
+    return;
+  }
+  const idx = state.machineList.findIndex(x=>x.id===machineId);
+  if(idx < 0){ toast('Mesin tidak ditemukan','err'); return; }
+  const oldStatus = state.machineList[idx].status;
+  state.machineList[idx].status    = _selectedMachStatus;
+  state.machineList[idx].statusNote = document.getElementById('msq-note').value.trim();
+  state.machineList[idx].statusUpdatedAt = new Date().toISOString();
+  state.machineList[idx].statusUpdatedBy = state.user||'Planner';
+
+  // Add notification if status changed
+  if(oldStatus !== _selectedMachStatus){
+    const lbl = MACH_STATUS_LABEL[_selectedMachStatus]||_selectedMachStatus;
+    addNotification('machine','🏭','Status Mesin Berubah',
+      machineId+' → '+lbl+(state.machineList[idx].statusNote?' · '+state.machineList[idx].statusNote.slice(0,40):''));
+  }
+
+  _selectedMachStatus = null;
+  save(); renderDashboard(); populateNavBadges();
+  modal.classList.remove('open');
+  toast('✓ Status '+machineId+' diupdate ke '+MACH_STATUS_LABEL[state.machineList[idx].status]);
 }
 
 function openMachineModal(id=null){
