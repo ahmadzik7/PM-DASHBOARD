@@ -324,6 +324,15 @@ select option{background:#fff;}
 
 /* PARETO BAR */
 .pareto-item{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+.mach-sf{font-size:9px;padding:3px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-muted);transition:all .15s;font-family:var(--mono);}
+.mach-sf.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+.mach-sf:hover:not(.active){background:var(--surface2);}
+.machine-grid.list-view{grid-template-columns:1fr !important;}
+.machine-grid.list-view .machine-card{display:flex;align-items:center;gap:12px;padding:10px 14px;min-height:unset;}
+.machine-grid.list-view .machine-card .mc-id{font-size:13px;min-width:40px;}
+.machine-grid.list-view .machine-card .mc-name{flex:1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.machine-grid.list-view .machine-card .mc-stats{display:flex;gap:12px;margin-top:0;}
+.machine-grid.list-view .mc-stat{flex-direction:row;gap:4px;}
 .pareto-label{font-family:var(--mono);font-size:10px;min-width:90px;color:var(--text-dim);}
 .pareto-bar-wrap{flex:1;background:var(--border);height:12px;border-radius:6px;overflow:hidden;}
 .pareto-bar-fill{height:12px;background:var(--red);transition:width 0.5s;}
@@ -404,6 +413,10 @@ select option{background:#fff;}
   </div>
   <div class="header-right">
     <div class="clock" id="clockEl">00:00:00</div>
+    <button onclick="forceSync()" title="Refresh data dari server"
+      style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-muted);cursor:pointer;font-family:var(--mono);">
+      ⟳ Sync
+    </button>
     <div id="notif-header-btn" onclick="goPage('notification',null)" style="cursor:pointer;padding:4px 10px;border:1px solid var(--border);color:var(--text-muted);font-size:16px;position:relative;">
       🔔<span id="notif-count-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:8px;font-family:var(--mono);padding:1px 4px;border-radius:8px;font-weight:700;">0</span>
     </div>
@@ -446,18 +459,37 @@ select option{background:#fff;}
           </div>
           <div id="dash-workload-bars"></div>
         </div>
-        <!-- Pareto Problem -->
+        <!-- WO Progress Pie Chart -->
         <div class="card">
-          <div class="card-title"><span>📊 Pareto Problem — Top 5 Issue</span></div>
-          <div id="dash-pareto"></div>
+          <div class="card-title">
+            <span>🎯 Progress WO</span>
+            <button class="btn btn-ghost btn-xs" onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='';filterWO();">Lihat WO</button>
+          </div>
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;padding:8px 0;">
+            <canvas id="dash-wo-pie" width="130" height="130" style="flex-shrink:0;"></canvas>
+            <div id="dash-wo-pie-legend" style="margin-left:16px;flex:1;min-width:0;"></div>
+          </div>
+          <div id="dash-wo-pie-center" style="display:none;"></div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <!-- WO per Area/Mesin -->
-        <div class="card">
-          <div class="card-title"><span>🔧 WO per Mesin</span></div>
-          <div id="dash-wo-per-machine"></div>
-        </div>
+<div class="card-title">
+  <span>🔧 WO per Mesin</span>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <button id="wpm-btn-all"  onclick="setWpmFilter('all')"
+      style="font-size:9px;padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--blue);color:#fff;cursor:pointer;font-weight:600;">Semua</button>
+    <button id="wpm-btn-aktif" onclick="setWpmFilter('aktif')"
+      style="font-size:9px;padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;font-weight:600;">Ada WO</button>
+  </div>
+</div>
+<div id="dash-wo-per-machine"></div>
+<div id="dash-wpm-toggle" style="text-align:center;margin-top:6px;display:none;">
+  <button onclick="toggleWpmExpand()"
+    style="font-size:10px;color:var(--blue);background:none;border:none;cursor:pointer;padding:2px 0;"
+    id="dash-wpm-toggle-btn">▼ Tampilkan semua mesin</button>
+</div>
+       
         <!-- Notifikasi -->
         <div class="card">
           <div class="card-title"><span>🔔 Notifikasi Aktif</span><button class="btn btn-ghost btn-xs" onclick="goPage('notification',null)">Lihat Semua</button></div>
@@ -465,7 +497,36 @@ select option{background:#fff;}
         </div>
       </div>
       <div>
-        <div class="sec-header"><span class="sec-title">Status Mesin</span></div>
+        <div class="sec-header" style="flex-wrap:wrap;gap:8px;">
+          <span class="sec-title">Status Mesin</span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;">
+            <!-- Search mesin -->
+            <div style="position:relative;">
+              <input type="text" id="mach-search" placeholder="🔍 Cari mesin / fungsi..."
+                oninput="renderDashMachines()"
+                style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;width:160px;background:var(--surface);color:var(--text);outline:none;">
+            </div>
+            <!-- Filter status -->
+            <div style="display:flex;gap:4px;flex-wrap:wrap;" id="mach-status-filters">
+              <button class="mach-sf active" data-sf="all" onclick="setMachFilter(this)">Semua</button>
+              <button class="mach-sf" data-sf="running" onclick="setMachFilter(this)" style="border-color:var(--green);color:var(--green);">▶ Running</button>
+              <button class="mach-sf" data-sf="idle" onclick="setMachFilter(this)" style="border-color:var(--blue);color:var(--blue);">⏸ Idle</button>
+              <button class="mach-sf" data-sf="overhaul" onclick="setMachFilter(this)" style="border-color:var(--amber);color:var(--amber);">🔧 Overhaul</button>
+              <button class="mach-sf" data-sf="breakdown" onclick="setMachFilter(this)" style="border-color:var(--red);color:var(--red);">🔴 BD</button>
+            </div>
+            <!-- Filter fungsi/tipe -->
+            <select id="mach-type-filter" onchange="renderDashMachines()" style="font-size:11px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);">
+              <option value="">Semua Fungsi</option>
+            </select>
+            <!-- Tampilan grid/list toggle -->
+            <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+              <button id="mach-view-grid" onclick="setMachView('grid')" title="Grid" style="padding:5px 8px;border:none;background:var(--blue);color:#fff;cursor:pointer;font-size:11px;">⊞</button>
+              <button id="mach-view-list" onclick="setMachView('list')" title="List" style="padding:5px 8px;border:none;background:var(--surface);color:var(--text-muted);cursor:pointer;font-size:11px;">☰</button>
+            </div>
+          </div>
+          <!-- Stats bar -->
+          <div id="mach-stats-bar" style="width:100%;display:flex;gap:10px;font-size:10px;margin-top:2px;flex-wrap:wrap;"></div>
+        </div>
         <div class="machine-grid" id="dash-machines"></div>
       </div>
     </div>
@@ -2282,47 +2343,272 @@ function renderDashboard(){
       });
     }
   }
-  // Pareto Problem
-  const pareto = document.getElementById('dash-pareto');
-  if(pareto){
-    const typeCnt = {};
-    state.bdList.forEach(b=>{ if(b.type) typeCnt[b.type]=(typeCnt[b.type]||0)+1; });
-    state.woList.filter(w=>w.type==='emergency').forEach(w=>{ if(w.desc){ const key=w.desc.slice(0,20); typeCnt[key]=(typeCnt[key]||0)+1; } });
-    const sorted = Object.entries(typeCnt).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const maxV = sorted.length?sorted[0][1]:1;
-    pareto.innerHTML = sorted.length ? sorted.map(([k,v])=>`
-      <div class="pareto-item">
-        <span class="pareto-label">${k.slice(0,14)}</span>
-        <div class="pareto-bar-wrap"><div class="pareto-bar-fill" style="width:${Math.round(v/maxV*100)}%"></div></div>
-        <span class="pareto-val">${v}x</span>
-      </div>`).join('') : '<div style="color:var(--text-muted);font-size:11px;padding:10px;">Belum ada data</div>';
-  }
+  // WO Progress Pie Chart
+  renderWOPieChart();
 
-  // WO per Mesin
-  const woMachine = document.getElementById('dash-wo-per-machine');
-  if(woMachine){
-    const data = state.machineList.map(m=>({id:m.id, cnt:state.woList.filter(w=>w.machine===m.id&&(w.status==='open'||w.status==='progress'||w.status==='assigned')).length}));
-    const maxV = Math.max(...data.map(d=>d.cnt), 1);
-    woMachine.innerHTML = data.map(d=>`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);min-width:30px;">${d.id}</span>
-        <div style="flex:1;background:var(--border);height:8px;">
-          <div style="width:${d.cnt>0?Math.round(d.cnt/maxV*100):0}%;background:var(--amber);height:8px;"></div>
-        </div>
-        <span style="font-family:var(--mono);font-size:10px;min-width:20px;text-align:right;">${d.cnt}</span>
-      </div>`).join('');
-  }
+// WO per Mesin
+  window._wpmFilter   = window._wpmFilter   || 'all';
+  window._wpmExpanded = window._wpmExpanded || false;
+  renderWOPerMachine();
 
-  // Notification Preview
+    // Notification Preview
   renderDashNotif();
 
-  // Machine Status Cards
-  const machines = document.getElementById('dash-machines');
-  if(machines){
-    machines.innerHTML = state.machineList.map(m=>{
-      const col = MACH_STATUS_COLOR[m.status]||'var(--green)';
-      const woActive = state.woList.filter(w=>w.machine===m.id&&(w.status==='open'||w.status==='progress'||w.status==='assigned')).length;
-      const lastBD = state.bdList.filter(b=>b.machine===m.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  // Machine Status Cards — via new filtered render function
+  renderDashMachines();
+  populateMachTypeFilter();
+
+  // Generate notifications from current state
+  autoGenerateNotifications();
+  populateNavBadges();
+}
+
+function setWpmFilter(f){
+  window._wpmFilter = f;
+  window._wpmExpanded = false;
+  document.getElementById('wpm-btn-all').style.background  = f==='all'   ? 'var(--blue)' : 'var(--surface)';
+  document.getElementById('wpm-btn-all').style.color       = f==='all'   ? '#fff'        : 'var(--text-muted)';
+  document.getElementById('wpm-btn-aktif').style.background= f==='aktif' ? 'var(--blue)' : 'var(--surface)';
+  document.getElementById('wpm-btn-aktif').style.color     = f==='aktif' ? '#fff'        : 'var(--text-muted)';
+  renderWOPerMachine();
+}
+
+function toggleWpmExpand(){
+  window._wpmExpanded = !window._wpmExpanded;
+  renderWOPerMachine();
+}
+
+function renderWOPerMachine(){
+  const woMachine = document.getElementById('dash-wo-per-machine');
+  const toggleDiv = document.getElementById('dash-wpm-toggle');
+  const toggleBtn = document.getElementById('dash-wpm-toggle-btn');
+  if(!woMachine) return;
+
+  const SHOW_MAX = 6; // baris yang tampil sebelum di-expand
+  let data = state.machineList.map(m=>({
+    id: m.id, name: m.name||m.id,
+    cnt: state.woList.filter(w=>w.machine===m.id&&
+      (w.status==='open'||w.status==='progress'||w.status==='assigned')).length
+  })).sort((a,b)=>b.cnt-a.cnt);
+
+  if(window._wpmFilter === 'aktif') data = data.filter(d=>d.cnt>0);
+
+  const maxV    = Math.max(...data.map(d=>d.cnt), 1);
+  const hasMore = data.length > SHOW_MAX;
+  const visible = (hasMore && !window._wpmExpanded) ? data.slice(0, SHOW_MAX) : data;
+
+  woMachine.innerHTML = visible.length === 0
+    ?' <div style="text-align:center;color:var(--text-muted);font-size:11px;padding:12px 0;">✅ Tidak ada WO aktif</div>'
+    : visible.map(d=>`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+        <span title="${d.name}" style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);min-width:34px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:54px;">${d.id}</span>
+        <div style="flex:1;background:var(--border);border-radius:4px;height:8px;overflow:hidden;">
+          <div style="width:${d.cnt>0?Math.round(d.cnt/maxV*100):0}%;background:${d.cnt>0?'var(--amber)':'var(--border)'};height:8px;border-radius:4px;transition:width .3s;"></div>
+        </div>
+        <span style="font-family:var(--mono);font-size:10px;min-width:18px;text-align:right;font-weight:${d.cnt>0?'700':'400'};color:${d.cnt>0?'var(--text)':'var(--text-muted)'};">${d.cnt}</span>
+      </div>`).join('');
+
+  if(toggleDiv && toggleBtn){
+    toggleDiv.style.display = hasMore ? 'block' : 'none';
+    toggleBtn.textContent   = window._wpmExpanded
+      ? '▲ Sembunyikan'
+      : `▼ Tampilkan semua (${data.length} mesin)`;
+  }
+}
+
+
+
+
+// ═══════════════════════════════════════════════════════
+// WO PROGRESS PIE CHART
+// ═══════════════════════════════════════════════════════
+function renderWOPieChart(){
+  const canvas = document.getElementById('dash-wo-pie');
+  const legend = document.getElementById('dash-wo-pie-legend');
+  if(!canvas || !legend) return;
+
+  const total  = state.woList.length;
+  const open   = state.woList.filter(w=>w.status==='open').length;
+  const asgn   = state.woList.filter(w=>w.status==='assigned').length;
+  const prog   = state.woList.filter(w=>w.status==='progress').length;
+  const done   = state.woList.filter(w=>w.status==='done'||w.status==='closed').length;
+  const cancel = state.woList.filter(w=>w.status==='cancel').length;
+
+  const segments = [
+    {label:'Done/Closed',  val:done,   color:'#10b981'},
+    {label:'In Progress',  val:prog,   color:'#f59e0b'},
+    {label:'Assigned',     val:asgn,   color:'#8b5cf6'},
+    {label:'Open',         val:open,   color:'#3b82f6'},
+    {label:'Cancel',       val:cancel, color:'#94a3b8'},
+  ].filter(s=>s.val>0);
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2, R = Math.min(W,H)/2 - 6, Ri = R*0.55;
+  ctx.clearRect(0,0,W,H);
+
+  if(!total){
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'var(--bg,#f8fafc)';
+    ctx.beginPath(); ctx.arc(cx,cy,Ri,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('Tidak ada WO', cx, cy);
+    legend.innerHTML = '';
+    return;
+  }
+
+  let startAngle = -Math.PI/2;
+  segments.forEach(function(s){
+    const slice = (s.val/total)*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,R,startAngle,startAngle+slice);
+    ctx.closePath();
+    ctx.fillStyle = s.color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    startAngle += slice;
+  });
+
+  // Donut hole
+  ctx.beginPath(); ctx.arc(cx,cy,Ri,0,Math.PI*2);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg')||'#ffffff';
+  ctx.fill();
+
+  // Center text — completion %
+  const pct = total ? Math.round(done/total*100) : 0;
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 18px var(--mono,monospace)'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(pct+'%', cx, cy-7);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('Selesai', cx, cy+9);
+
+  // Legend
+  legend.innerHTML = segments.map(s=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;cursor:pointer;"
+      onclick="goPage('workorder',document.querySelector('.nav-item.nav-wo'));document.getElementById('wo-filter-status').value='${s.label==='Done/Closed'?'done':s.label==='In Progress'?'progress':s.label==='Assigned'?'assigned':s.label==='Open'?'open':'cancel'}';filterWO();">
+      <div style="width:10px;height:10px;border-radius:3px;background:${s.color};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:10px;color:var(--text-dim);white-space:nowrap;">${s.label}</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:12px;font-weight:700;">${s.val}</div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// MACHINE DASHBOARD — FILTER, SEARCH, VIEW TOGGLE
+// ═══════════════════════════════════════════════════════
+let _machFilter = 'all';
+let _machView   = 'grid'; // 'grid' | 'list'
+
+function setMachFilter(el){
+  _machFilter = el.dataset.sf;
+  document.querySelectorAll('.mach-sf').forEach(b=>{
+    b.classList.remove('active');
+    b.style.background = 'transparent';
+    b.style.color = b.dataset.sf==='running'?'var(--green)':b.dataset.sf==='idle'?'var(--blue)':b.dataset.sf==='overhaul'?'var(--amber)':b.dataset.sf==='breakdown'?'var(--red)':'var(--text-muted)';
+  });
+  el.classList.add('active');
+  el.style.background = 'var(--blue)';
+  el.style.color = '#fff';
+  renderDashMachines();
+}
+
+function setMachView(v){
+  _machView = v;
+  const grid = document.getElementById('dash-machines');
+  if(!grid) return;
+  if(v==='list'){ grid.classList.add('list-view'); }
+  else           { grid.classList.remove('list-view'); }
+  document.getElementById('mach-view-grid').style.background = v==='grid'?'var(--blue)':'var(--surface)';
+  document.getElementById('mach-view-grid').style.color      = v==='grid'?'#fff':'var(--text-muted)';
+  document.getElementById('mach-view-list').style.background = v==='list'?'var(--blue)':'var(--surface)';
+  document.getElementById('mach-view-list').style.color      = v==='list'?'#fff':'var(--text-muted)';
+  renderDashMachines();
+}
+
+function populateMachTypeFilter(){
+  const sel = document.getElementById('mach-type-filter');
+  if(!sel) return;
+  const cur = sel.value;
+  const types = [...new Set(state.machineList.map(m=>m.type||'').filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Semua Fungsi</option>';
+  types.forEach(t=>{ sel.innerHTML += `<option value="${t}">${t}</option>`; });
+  sel.value = cur;
+}
+
+function renderDashMachines(){
+  const el     = document.getElementById('dash-machines');
+  if(!el) return;
+  const search = (document.getElementById('mach-search')?.value||'').toLowerCase().trim();
+  const fType  = document.getElementById('mach-type-filter')?.value||'';
+
+  // Apply filters
+  let list = state.machineList.filter(m=>{
+    if(_machFilter!=='all' && m.status!==_machFilter) return false;
+    if(fType && m.type!==fType) return false;
+    if(search){
+      const hay = ((m.id||'')+(m.name||'')+(m.type||'')+(m.location||'')).toLowerCase();
+      if(!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // Sort: breakdown first, then overhaul, then running, idle, others
+  const statusOrder = {breakdown:0,overhaul:1,running:2,active:3,maintenance:4,idle:5,standby:6,retired:7};
+  list.sort((a,b)=>(statusOrder[a.status]??9)-(statusOrder[b.status]??9));
+
+  // Stats bar
+  const statsBar = document.getElementById('mach-stats-bar');
+  if(statsBar){
+    const total    = state.machineList.length;
+    const running  = state.machineList.filter(m=>m.status==='running'||m.status==='active').length;
+    const idle     = state.machineList.filter(m=>m.status==='idle'||m.status==='standby').length;
+    const overhaul = state.machineList.filter(m=>m.status==='overhaul'||m.status==='maintenance').length;
+    const breakdown= state.machineList.filter(m=>m.status==='breakdown').length;
+    statsBar.innerHTML = [
+      {label:'Total',     val:total,    color:'var(--text-muted)'},
+      {label:'Running',   val:running,  color:'var(--green)'},
+      {label:'Idle',      val:idle,     color:'var(--blue)'},
+      {label:'Overhaul',  val:overhaul, color:'var(--amber)'},
+      {label:'Breakdown', val:breakdown,color:'var(--red)'},
+      {label:'Ditampilkan',val:list.length, color:'var(--text)'},
+    ].map(s=>`<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--surface2);color:${s.color};">
+      <b>${s.val}</b> ${s.label}</span>`).join('');
+  }
+
+  if(!list.length){
+    el.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--text-muted);font-size:12px;">
+      <div style="font-size:28px;margin-bottom:8px;">🔍</div>
+      Tidak ada mesin yang cocok dengan filter ini</div>`;
+    return;
+  }
+
+  if(_machView==='list'){
+    el.classList.add('list-view');
+    el.innerHTML = list.map(m=>{
+      const col     = MACH_STATUS_COLOR[m.status]||'var(--green)';
+      const woActive= state.woList.filter(w=>w.machine===m.id&&(w.status==='open'||w.status==='progress'||w.status==='assigned')).length;
+      return `<div class="machine-card" onclick="openMachineStatusQuick('${m.id}')" style="cursor:pointer;" title="Klik untuk ubah status">
+        <div style="width:8px;height:8px;border-radius:50%;background:${col};box-shadow:0 0 5px ${col};flex-shrink:0;"></div>
+        <div class="mc-id" style="font-size:12px;min-width:36px;">${m.id}</div>
+        <div class="mc-name" style="flex:1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+        <div style="font-size:9px;color:var(--text-muted);min-width:80px;white-space:nowrap;">${m.type||'—'}</div>
+        <span style="font-size:9px;font-weight:700;color:${col};font-family:var(--mono);white-space:nowrap;">${MACH_STATUS_LABEL[m.status]||m.status}</span>
+        ${woActive?`<span style="font-family:var(--mono);font-size:10px;background:rgba(245,158,11,.15);color:var(--amber);padding:1px 6px;border-radius:10px;">${woActive} WO</span>`:''}
+      </div>`;
+    }).join('');
+  } else {
+    el.classList.remove('list-view');
+    el.innerHTML = list.map(m=>{
+      const col     = MACH_STATUS_COLOR[m.status]||'var(--green)';
+      const woActive= state.woList.filter(w=>w.machine===m.id&&(w.status==='open'||w.status==='progress'||w.status==='assigned')).length;
+      const lastBD  = state.bdList.filter(b=>b.machine===m.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
       return `<div class="machine-card" onclick="openMachineStatusQuick('${m.id}')" style="cursor:pointer;" title="Klik untuk ubah status">
         <div style="position:absolute;top:10px;right:12px;display:flex;align-items:center;gap:5px;">
           <span style="font-size:9px;font-weight:700;color:${col};font-family:var(--mono);">${MACH_STATUS_ICON[m.status]||'●'} ${MACH_STATUS_LABEL[m.status]||m.status}</span>
@@ -2334,17 +2620,70 @@ function renderDashboard(){
         <div class="mc-stats">
           <div class="mc-stat">WO Aktif<span>${woActive}</span></div>
           <div class="mc-stat">Last BD<span>${lastBD?fmtDate(lastBD.date?.slice(0,10)):'—'}</span></div>
-          <div class="mc-stat" style="cursor:pointer;" onclick="event.stopPropagation();openMachineStatusQuick('${m.id}')">
-            <span style="font-size:9px;color:var(--blue);">✏ Edit Status</span>
+          <div class="mc-stat" onclick="event.stopPropagation();openMachineStatusQuick('${m.id}')" style="cursor:pointer;">
+            <span style="font-size:9px;color:var(--blue);">✏ Edit</span>
           </div>
         </div>
       </div>`;
     }).join('');
   }
+}
 
-  // Generate notifications from current state
-  autoGenerateNotifications();
-  populateNavBadges();
+// ═══════════════════════════════════════════════════════
+// AUTO SYNC — Pull dari GAS setiap 3 menit
+// ═══════════════════════════════════════════════════════
+let _autoSyncTimer = null;
+let _autoSyncEnabled = true;
+const AUTO_SYNC_INTERVAL = 3 * 60 * 1000; // 3 menit
+
+function startAutoSync(){
+  stopAutoSync();
+  if(!GAS_URL || !_autoSyncEnabled) return;
+  _autoSyncTimer = setInterval(async ()=>{
+    if(document.hidden) return; // jangan sync jika tab tidak aktif
+    try {
+      const res = await fetch(GAS_URL, {cache:'no-cache', signal:AbortSignal.timeout(10000)});
+      if(!res.ok) return;
+      const data = await res.json();
+      if(data && !data.error){
+        applyData(data);
+        saveLocal();
+        // Refresh semua UI yang sedang aktif
+        renderDashboard();
+        const curPage = document.querySelector('.page.active')?.id;
+        if(curPage==='page-workorder') renderWOList();
+        if(curPage==='page-schedule')  renderCalendar();
+        if(curPage==='page-manpower')  renderWorkload();
+        setSyncStatus('ok');
+        // Update sync indicator quietly (no toast)
+        const sub = document.getElementById('headerSub');
+        if(sub){
+          const t = new Date().toTimeString().slice(0,5);
+          const base = `👤 ${state.user||'—'} · ${state.machineList.length} Mesin`;
+          sub.textContent = base + `  ☁️ Sync ${t}`;
+        }
+      }
+    } catch(e){
+      // Gagal silent — tidak ganggu pengguna
+      console.warn('[AutoSync] gagal:', e.message);
+    }
+  }, AUTO_SYNC_INTERVAL);
+  console.log('[AutoSync] started, interval:', AUTO_SYNC_INTERVAL/1000+'s');
+}
+
+function stopAutoSync(){
+  if(_autoSyncTimer){ clearInterval(_autoSyncTimer); _autoSyncTimer=null; }
+}
+
+// Pause auto-sync saat tab tidak terlihat, resume saat aktif lagi
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ stopAutoSync(); }
+  else { startAutoSync(); }
+});
+
+// Force manual sync
+function forceSync(){
+  load().then(()=>{ toast('✓ Data berhasil diperbarui'); });
 }
 
 function renderDashNotif(){
@@ -2521,7 +2860,7 @@ function renderTechReports(){
         ${photos.slice(0,4).map((p,i)=>`
           <div onclick="event.stopPropagation();openTechPhotoLightbox('${r.id}',${i})"
             style="width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer;flex-shrink:0;">
-            ${p.thumb||p.url?`<img src="${p.thumb||p.url}" style="width:100%;height:100%;object-fit:cover;">`
+            ${p.thumb||p.url?`<img src="${driveThumb(p.thumb||p.url)}" style="width:100%;height:100%;object-fit:cover;">`
               :`<div style="width:100%;height:100%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;">📷</div>`}
           </div>`).join('')}
         ${photos.length>4?`<div style="width:72px;height:72px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);font-weight:700;border:1px solid var(--border);">+${photos.length-4}</div>`:''}
@@ -2554,24 +2893,34 @@ let _lightboxPhotos = [];
 function openTechPhotoLightbox(reportId, startIdx){
   const r = (state.techReports||[]).find(x=>x.id===reportId);
   if(!r) return;
-  const photos = (r.photos||[]).map(p=>p.url||p.thumb||p.dataUrl).filter(Boolean);
+const photos = (r.photos||[]).map(p=>driveThumb(p.url||p.thumb||p.dataUrl||'')).filter(Boolean);
   if(!photos.length) return;
   _lightboxPhotos = photos;
   openLightboxWithPhotos(photos, startIdx);
 }
 
-// Generic lightbox opener — reuse existing lightbox if available
+// Generic lightbox opener
 function openLightboxWithPhotos(photos, idx){
-  // Try to use existing lightbox elements
-  const lb = document.getElementById('lightbox') || document.getElementById('lb');
+  const lb  = document.getElementById('lightbox');
   const img = document.getElementById('lbImg');
-  if(lb && img){
-    _lightboxPhotos = photos;
-    _lightboxTechIdx = idx;
-    img.src = photos[idx];
-    lb.classList.add('open');
-  }
+  if(!lb || !img) return;
+  _lightboxPhotos = photos;
+  _lightboxTechIdx = idx;
+  img.src = photos[idx];
+  lb.style.display = 'flex';
 }
+function driveThumb(url) {
+  if (!url) return '';
+  // Sudah thumbnail langsung
+  if (url.includes('drive-viewer/') || url.includes('lh3.googleusercontent')) return url;
+  // Extract file ID dari berbagai format Drive URL
+  var m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (!m) m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})\//);
+  if (!m) m = url.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (!m) return url; // bukan URL Drive, kembalikan apa adanya
+  return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400';
+}
+
 let _lightboxTechIdx = 0;
 
 function buildPhotoGrid(photos, rid){
@@ -2581,7 +2930,7 @@ function buildPhotoGrid(photos, rid){
   var label = '<div style="margin-bottom:14px;"><label style="font-family:var(--mono);font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;">Foto Dokumentasi (' + photos.length + ')</label>';
   var grid  = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;">';
   photos.forEach(function(p, i){
-    var src      = p.url||p.thumb||p.directUrl||p.dataUrl||'';
+    var src      = driveThumb(p.url||p.thumb||p.directUrl||p.dataUrl||'');
     var driveUrl = p.url||p.directUrl||'';
     var imgHtml  = src
       ? '<img src="' + src + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:4px;"><span style=\'font-size:24px\'>📷</span><span style=\'font-size:9px;color:var(--text-muted)\'>Gagal muat</span></div>'
@@ -5132,7 +5481,7 @@ function executeBulkImport(){
 function openTechPhotoLightbox(reportId, startIdx){
   const r = (state.techReports||[]).find(x=>x.id===reportId);
   if(!r) return;
-  _lightboxPhotos = (r.photos||[]).map(p=>p.url||p.thumb||p.directUrl||p.dataUrl||'').filter(Boolean);
+_lightboxPhotos = (r.photos||[]).map(p=>driveThumb(p.url||p.thumb||p.directUrl||p.dataUrl||'')).filter(Boolean);
   if(!_lightboxPhotos.length) return;
   _lightboxTechIdx = startIdx;
   document.getElementById('lbImg').src = _lightboxPhotos[startIdx];
@@ -5189,7 +5538,7 @@ async function forceSyncNow(){
 
 async function forceLoadNow(){
   toast('⬇️ Mengambil data dari Drive...', 'warn');
-  await load();
+  await load().then(()=>startAutoSync());
   initAll();
   toast('✅ Data berhasil diload dari Drive');
 }
@@ -5254,8 +5603,8 @@ function importData(){
 // INIT APP
 // ===============================
 async function initApp(){
-  // Load data (cache lokal dulu, lalu sync dari Drive)
-  await load();
+  // Tampilkan cache lokal dulu (non-blocking)
+  loadLocal();
 
   const savedUser = localStorage.getItem('pm_user');
   if(savedUser){
@@ -5267,11 +5616,35 @@ async function initApp(){
     document.getElementById('headerSub').textContent=`👤 ${state.user} · ${state.machineList.length} Mesin`;
     populateTechSelects();
     initAll();
+    // Sync dari GAS di background SETELAH UI tampil
+    syncFromGAS();
   } else {
     document.getElementById('userOverlay').style.display='flex';
   }
   state.calYear=new Date().getFullYear();
   state.calMonth=new Date().getMonth();
+}
+
+async function syncFromGAS(){
+  if(!GAS_URL){ setSyncStatus('offline'); return; }
+  setSyncStatus('saving');
+  try {
+    const res = await fetch(GAS_URL, {cache:'no-cache'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if(data && !data.error){
+      applyData(data);
+      saveLocal();
+      setSyncStatus('ok');
+      renderDashboard(); renderPMList(); renderWOList();
+    } else {
+      throw new Error(data?.error || 'Response tidak valid');
+    }
+  } catch(err){
+    console.error('GAS load error:', err);
+    setSyncStatus('err');
+    toast('⚠️ Gagal sync dari Drive, pakai data lokal', 'warn');
+  }
 }
 
 initApp();
