@@ -1840,9 +1840,10 @@ select option{background:#fff;}
 
     </div>
     <div class="modal-footer">
-      <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--text-muted);" id="bulk-footer-info"></div>
-      <button class="btn btn-ghost" onclick="closeBulkModal()">Batal</button>
-      <button class="btn btn-teal" id="bulk-import-btn" onclick="executeBulkImport()" disabled style="opacity:0.5;">⬆ Import <span id="bulk-import-count">0</span> Data</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('tech-report-modal').classList.remove('open')">Tutup</button>
+      <button class="btn btn-red btn-xs" id="tr-delete-btn" onclick="deleteTechReport(_currentTechReportId)" style="margin-right:auto;">🗑 Hapus</button>
+      <button class="btn btn-red" id="tr-reject-btn" onclick="rejectTechReport()" style="display:none;">✕ Tolak</button>
+      <button class="btn btn-green" id="tr-approve-btn" onclick="approveTechReport()" style="display:none;">✓ Verifikasi & Done</button>
     </div>
   </div>
 </div>
@@ -2863,6 +2864,9 @@ function renderTechReports(){
             <span style="font-size:13px;font-weight:700;">${title.slice(0,60)}${title.length>60?'...':''}</span>
             ${r.isAdhoc?`<span class="badge" style="background:#fef3c7;color:#92400e;">⚡ Ad-hoc</span>`:''}
             <span class="badge" style="background:${stBg};color:${stColor};">${STATUS_LBL[r.status]||r.status}</span>
+            ${r.status==='done'&&r.verifyStatus==='verified'?`<span class="badge" style="background:#d1fae5;color:#065f46;">✅ Verified</span>`:''}
+            ${r.status==='done'&&r.verifyStatus==='rejected'?`<span class="badge" style="background:#fee2e2;color:#991b1b;">✕ Ditolak</span>`:''}
+            ${r.status==='done'&&!r.verifyStatus?`<span class="badge" style="background:#fef3c7;color:#92400e;">⏳ Perlu Verifikasi</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text-muted);">
             👤 <b>${r.tech}</b> &nbsp;·&nbsp; 📍 ${r.area}
@@ -2979,18 +2983,26 @@ function openTechReportDetail(id){
     (r.isAdhoc?'⚡ Ad-hoc: ':'') + (r.adhocTitle||r.work||'Laporan Teknisi').slice(0,50);
 
   // Show/hide approve button
+  // Tombol verifikasi — tampil kalau status laporan 'done' dan belum diverifikasi
   const approveBtn = document.getElementById('tr-approve-btn');
-  approveBtn.style.display = (linkedWO && r.status !== 'done') ? 'block' : 'none';
+  const rejectBtn  = document.getElementById('tr-reject-btn');
+  const needsVerif = r.status === 'done' && r.verifyStatus !== 'verified' && r.verifyStatus !== 'rejected';
+  approveBtn.style.display = needsVerif ? 'inline-flex' : 'none';
+  rejectBtn.style.display  = needsVerif ? 'inline-flex' : 'none';
 
   document.getElementById('tr-modal-body').innerHTML = `
     <!-- Status Banner -->
-    <div style="background:${stBg};border:1px solid ${stColor};border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+    <div style="background:${stBg};border:1px solid ${stColor};border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="font-size:18px;">${r.status==='done'?'✅':r.status==='progress'?'🔄':r.status==='onhold'?'⏸':'📋'}</span>
-      <div>
+      <div style="flex:1;">
         <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${stColor};letter-spacing:1px;">STATUS LAPORAN</div>
         <div style="font-size:14px;font-weight:700;color:${stColor};">${STATUS_LBL[r.status]||r.status}</div>
       </div>
-      ${r.isAdhoc?`<span style="margin-left:auto;background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;">⚡ Ad-hoc / Verbal</span>`:''}
+      ${r.verifyStatus==='verified'?`<span style="background:#d1fae5;color:#065f46;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;">✅ Terverifikasi${r.verifiedBy?' · '+r.verifiedBy:''}</span>`:''}
+      ${r.verifyStatus==='rejected'?`<span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;">✕ Ditolak${r.verifiedBy?' · '+r.verifiedBy:''}</span>`:''}
+      ${r.status==='done'&&!r.verifyStatus?`<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;">⏳ Menunggu Verifikasi</span>`:''}
+      ${r.isAdhoc?`<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;">⚡ Ad-hoc</span>`:''}
+      ${r.rejectReason?`<div style="width:100%;margin-top:6px;font-size:11px;color:#991b1b;background:#fee2e2;padding:6px 10px;border-radius:6px;">💬 Alasan tolak: ${r.rejectReason}</div>`:''}
     </div>
 
     <div class="form-grid" style="margin-bottom:16px;">
@@ -3073,20 +3085,74 @@ function deleteTechReport(id){
 
 function approveTechReport(){
   if(!_currentTechReportId) return;
-  const r = (state.techReports||[]).find(x=>x.id===_currentTechReportId);
-  if(!r||!r.woRef) return;
-  const idx = state.woList.findIndex(w=>w.no===r.woRef||w.id===r.woRef);
-  if(idx<0){ toast('WO tidak ditemukan','err'); return; }
+  const rIdx = (state.techReports||[]).findIndex(x=>x.id===_currentTechReportId);
+  if(rIdx<0) return;
+  const r = state.techReports[rIdx];
 
-  // Update WO status based on tech report status
-  const newStatus = r.status==='done'?'done':r.status==='progress'?'progress':state.woList[idx].status;
-  state.woList[idx].status   = newStatus;
-  state.woList[idx].progress = r.status==='done'?100:r.status==='progress'?50:state.woList[idx].progress||0;
-  if(r.work) state.woList[idx].action = r.work;
+  // Tandai laporan sebagai terverifikasi
+  state.techReports[rIdx] = {
+    ...r,
+    verifyStatus: 'verified',
+    verifiedBy:   state.user || 'Admin',
+    verifiedAt:   new Date().toISOString()
+  };
 
-  save(); renderWOList(); renderDashboard();
+  // Update WO terkait (adhoc maupun planner)
+  const woIdx = state.woList.findIndex(w=>w.no===r.woRef||w.id===r.woRef);
+  if(woIdx >= 0){
+    state.woList[woIdx].status   = 'done';
+    state.woList[woIdx].progress = 100;
+    state.woList[woIdx].closedAt = new Date().toISOString();
+    if(r.work) state.woList[woIdx].action = r.work;
+    toast(`✅ Laporan diverifikasi — WO ${r.woRef||state.woList[woIdx].no} ditutup`,'success');
+  } else if(r.isAdhoc){
+    // WO adhoc belum terdaftar di list — buat sekarang
+    const newWO = {
+      id:       r.id+'_wo',
+      no:       'WO-ADH-'+(r.id||'').slice(0,6).toUpperCase(),
+      desc:     r.adhocTitle||r.work||'Ad-hoc',
+      machine:  r.area||'—',
+      type:     'corrective',
+      source:   'adhoc',
+      pic:      r.tech,
+      status:   'done',
+      progress: 100,
+      date:     r.date,
+      closedAt: new Date().toISOString(),
+      createdAt:r.createdAt||new Date().toISOString(),
+    };
+    state.woList.unshift(newWO);
+    state.techReports[rIdx].woRef = newWO.id;
+    toast(`✅ Laporan adhoc diverifikasi — WO ${newWO.no} dibuat & ditutup`,'success');
+  } else {
+    toast('✅ Laporan diverifikasi (WO tidak ditemukan, hanya laporan yang diupdate)','success');
+  }
+
+  save(); renderWOList(); renderTechReports(); renderDashboard(); populateNavBadges();
   document.getElementById('tech-report-modal').classList.remove('open');
-  toast(`✓ WO ${r.woRef} diupdate ke "${newStatus}"`);
+}
+
+function rejectTechReport(){
+  if(!_currentTechReportId) return;
+  const rIdx = (state.techReports||[]).findIndex(x=>x.id===_currentTechReportId);
+  if(rIdx<0) return;
+  const r = state.techReports[rIdx];
+
+  const reason = prompt('Alasan penolakan laporan dari '+r.tech+':');
+  if(reason === null) return; // batal
+  if(!reason.trim()){ toast('Alasan tidak boleh kosong','warn'); return; }
+
+  state.techReports[rIdx] = {
+    ...r,
+    verifyStatus: 'rejected',
+    rejectReason: reason.trim(),
+    verifiedBy:   state.user || 'Admin',
+    verifiedAt:   new Date().toISOString()
+  };
+
+  save(); renderTechReports();
+  document.getElementById('tech-report-modal').classList.remove('open');
+  toast(`✕ Laporan ${r.tech} ditolak — teknisi perlu revisi`,'warn');
 }
 
 function openTechWorkloadDetail(techName){
