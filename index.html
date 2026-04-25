@@ -1991,11 +1991,32 @@ async function _doSave(retry=false){
   if(_isSaving){ _pendingSave=true; return; }
   _isSaving = true;
   try {
+    // 1. Fetch dulu dari GAS agar tidak overwrite data PM App
+    let merged = buildPayload();
+    try {
+      const getRes = await fetch(GAS_URL, {cache:'no-cache', signal: AbortSignal.timeout(8000)});
+      if(getRes.ok){
+        const remote = await getRes.json();
+        if(remote && !remote.error){
+          // Preserve techReports dari PM App — jangan ditimpa dashboard
+          merged.techReports = remote.techReports || merged.techReports;
+          // Merge WO: pertahankan WO adhoc dari PM App yang tidak ada di state lokal
+          const localIds = new Set(merged.wo.map(w=>w.id||w.no));
+          const remoteOnlyWO = (remote.wo||[]).filter(w=>!localIds.has(w.id||w.no));
+          if(remoteOnlyWO.length > 0){
+            merged.wo = [...merged.wo, ...remoteOnlyWO];
+            state.woList = merged.wo; // sync balik ke state
+          }
+        }
+      }
+    } catch(e){ /* lanjut dengan data lokal jika GAS tidak bisa difetch */ }
+
+    // 2. Baru push ke GAS
     const res = await fetch(GAS_URL, {
       method: 'POST',
       headers: {'Content-Type':'text/plain'},
-      body: JSON.stringify(buildPayload()),
-      signal: AbortSignal.timeout(15000) // 15 detik timeout
+      body: JSON.stringify(merged),
+      signal: AbortSignal.timeout(15000)
     });
     const txt = await res.text();
     if(res.ok && txt && !txt.startsWith('{"ok":false')){
@@ -2005,7 +2026,6 @@ async function _doSave(retry=false){
     }
   } catch(err){
     if(!retry){
-      // Auto retry sekali setelah 3 detik
       setTimeout(()=>_doSave(true), 3000);
       return;
     }
